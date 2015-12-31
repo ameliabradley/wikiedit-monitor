@@ -17,13 +17,13 @@ var aBulkQuery = [];
 var iLastDiff = null;
 var oBadDiffs = {};
 
-function logError (idiff, type, data, url) {
+function logError (revnew, type, data, url) {
    console.error(type, util.inspect(data, { showHidden: false, depth: null }));
    
    pg.connect(conString, function(err, client, done) {
       if (err) return console.error('error fetching client from pool', err);
 
-      client.query('INSERT INTO errorlog (idiff, type, data, url) VALUES ($1, $2, $3, $4)', [idiff, type, data, url], function (err, result) {
+      client.query('INSERT INTO errorlog (revnew, type, data, url) VALUES ($1, $2, $3, $4)', [revnew, type, data, url], function (err, result) {
          done(client);
          if (err) return console.error('error running ERROR query', err);
       });
@@ -55,7 +55,11 @@ pg.connect(conString, function(err, client, done) {
          });
 
          response.on('end', function () {
-            var parsed = JSON.parse(body);
+            try {
+               var parsed = JSON.parse(body);
+            } catch (e) {
+               // App will log an error when it realizes parsed is empty
+            }
 
             if (parsed && parsed.query && parsed.query.pages) {
                Object.keys(parsed.query.pages).forEach(function (pagenum) {
@@ -67,7 +71,7 @@ pg.connect(conString, function(err, client, done) {
                         var diff = revision.diff['*'];
                         delete oBadDiffs[revid];
 
-                        client.query('UPDATE wikipediaedits SET diff = $1, updated = current_timestamp WHERE idiff = $2 AND "wikipediaShort" = $3', [diff, revision.revid, "en"], function (err, result) {
+                        client.query('UPDATE wikiedits SET diff = $1, updated = current_timestamp WHERE revnew = $2 AND wiki = $3', [diff, revision.revid, "en"], function (err, result) {
                            if (err) return console.error('error running INSERT query', err);
                         });
                      } else if (revid) {
@@ -84,6 +88,14 @@ pg.connect(conString, function(err, client, done) {
                         // Three strikes and I'm not querying for this revision's diff anymore
                         if (oBadDiffs[revid] > 3) {
                            // Something's wrong with this revision! :(
+                           // NOTE: Usually happens with an admin's revdelete revision
+                           // EX: https://en.wikipedia.org/w/api.php?action=query&prop=revisions&format=json&rvdiffto=prev&revids=696894315
+                           // but sometimes it's just the server cache being unusually slow
+
+                           // TODO: I should go back and look at previously logged revisions for this page
+                           // to see if any I've logged have been deleted
+                           // Keep in mind though, there MAY be revdelete types that don't exhibit this behavior?
+                           
                            logError(revid, "crazy revision", page, strUrl);
                            delete oBadDiffs[revid];
                         } else {
@@ -98,71 +110,83 @@ pg.connect(conString, function(err, client, done) {
                   }
                });
             } else {
-               logError(null, "bad pages json value", page, strUrl);
+               logError(null, "bad pages json value", body, strUrl);
             }
+         });
+
+         response.on("error", function (err) {
+            logError(null, "http error", (body || "") + err, strUrl);
          });
       });
    }
 
-   // Requires socket.io-client 0.9.x:
-   // browser code can load a minified Socket.IO JavaScript library;
-   // standalone code can install via 'npm install socket.io-client@0.9.1'.
-   var socket = io.connect('stream.wikimedia.org/rc');
+   function setupSocket () {
+      // Requires socket.io-client 0.9.x:
+      // browser code can load a minified Socket.IO JavaScript library;
+      // standalone code can install via 'npm install socket.io-client@0.9.1'.
+      var socket = io.connect('stream.wikimedia.org/rc');
 
-   socket.on('connect', function () {
-      console.log('connected');
-      socket.emit('subscribe', 'en.wikipedia.org');
-   });
+      socket.on('connect', function () {
+         console.log('connected');
+         socket.emit('subscribe', 'en.wikipedia.org');
+      });
 
-   socket.on('change', function (message) {
-      /*
-      { comment: 'refine category structure',
-        wiki: 'enwiki',
-        server_name: 'en.wikipedia.org',
-        title: 'Category:Valleys of Tulare County, California',
-        timestamp: 1451104944,
-        server_script_path: '/w',
-        namespace: 14,
-        server_url: 'https://en.wikipedia.org',
-        length: { new: 103, old: null },
-        user: 'Hmains',
-        bot: false,
-        patrolled: true,
-        type: 'new',
-        id: 783574664,
-        minor: false,
-        revision: { new: 696823369, old: null } };
-      */
+      socket.on('change', function (message) {
+         /*
+         { comment: 'refine category structure',
+           wiki: 'enwiki',
+           server_name: 'en.wikipedia.org',
+           title: 'Category:Valleys of Tulare County, California',
+           timestamp: 1451104944,
+           server_script_path: '/w',
+           namespace: 14,
+           server_url: 'https://en.wikipedia.org',
+           length: { new: 103, old: null },
+           user: 'Hmains',
+           bot: false,
+           patrolled: true,
+           type: 'new',
+           id: 783574664,
+           minor: false,
+           revision: { new: 696823369, old: null } };
+         */
 
-      if (message.bot) return;
-      var revision = message.revision;
-      if ((!revision) || (!revision.old)) return;
+         if (message.bot) return;
+         var revision = message.revision;
+         if ((!revision) || (!revision.old)) return;
 
-      console.log(sprintf("%-20.20s | %-30.30s | %-60.60s", message.user, message.title, message.comment));
+         console.log(sprintf("%-20.20s | %-30.30s | %-60.60s", message.user, message.title, message.comment));
 
-      var wikipediaShort = message.server_name.substring(0, 2);
+         var wiki = message.server_name.substring(0, 2);
 
-      client.query('INSERT INTO wikipediaedits (idiff, oldid, rcid, title, comment, "wikipediaShort", "user") VALUES ($1, $2, $3, $4, $5, $6, $7)', [
-            revision.new,
-            revision.old,
-            null,
-            message.title,
-            message.comment,
-            wikipediaShort,
-            message.user
-         ], function(err, result) {
+         client.query('INSERT INTO wikiedits (revnew, revold, title, comment, wiki, username) VALUES ($1, $2, $3, $4, $5, $6)', [
+               revision.new,
+               revision.old,
+               message.title,
+               message.comment,
+               wiki,
+               message.user
+            ], function(err, result) {
 
-         if (revision.new && revision.old) {
-            aBulkQuery.push(revision.new);
+            if (revision.new && revision.old) {
+               aBulkQuery.push(revision.new);
 
-            if (aBulkQuery.length > 20) {
-               if ((!iLastDiff) || ((new Date()).getTime() > (iLastDiff + 10000))) {
-                  doBulkQuery();
+               if (aBulkQuery.length > 20) {
+                  if ((!iLastDiff) || ((new Date()).getTime() > (iLastDiff + 10000))) {
+                     doBulkQuery();
+                  }
                }
             }
-         }
 
-         if (err) return console.error('error running CLIENT query', err);
+            if (err) return console.error('error running CLIENT query', err);
+         });
       });
-   });
+
+      socket.on('error', function (err) {
+         logError(null, "http error", err);
+         setTimeout(setupSocket, 10000);
+      });
+   }
+
+   setupSocket();
 });
