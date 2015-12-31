@@ -1,0 +1,19 @@
+.diffchange {
+   background-color: #ccc;
+   font-weight: bold;
+}
+
+.title,
+.user {
+   overflow: hidden;
+   text-overflow: ellipsis;
+   white-space: nowrap;
+   max-width: 150px;
+}
+
+.comment {
+}
+
+.errorlog td {
+   white-space: nowrap;
+}
