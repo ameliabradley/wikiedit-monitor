@@ -35,7 +35,7 @@ function logError (revnew, type, data, url) {
    });
 }
 
-function doBulkQuery (client, done, aInsertGroup) {
+function doBulkQuery (aInsertGroup) {
    iLastRequest = (new Date()).getTime();
    var path = "/w/api.php?action=query&prop=revisions&format=json&rvdiffto=prev&revids=" + aInsertGroup.join("|");
 
@@ -134,11 +134,14 @@ function doBulkQuery (client, done, aInsertGroup) {
                strQuery += ") AS c(revnew, wiki, diff) WHERE w.revnew = cast(c.revnew as int) AND w.wiki = c.wiki";
 
                var iBeforeQuery = (new Date()).getTime();
-               client.query(strQuery, aValues, function (err, result) {
-                  done();
-                  var iAfterQuery = (new Date()).getTime();
-                  console.log("***** UPDATED " + iRowCount + " rows in " + (iAfterQuery - iBeforeQuery) + "ms");
-                  if (err) return console.error('error running UPDATE query', err);
+               pg.connect(conString, function(err, client, done) {
+                  if (err) return console.error('error fetching client from pool', err);
+                  client.query(strQuery, aValues, function (err, result) {
+                     done();
+                     var iAfterQuery = (new Date()).getTime();
+                     console.log("***** UPDATED " + iRowCount + " rows in " + (iAfterQuery - iBeforeQuery) + "ms");
+                     if (err) return console.error('error running UPDATE query', err);
+                  });
                });
             }
          } else {
@@ -242,10 +245,12 @@ function setupSocket () {
                pg.connect(conString, function(err, client, done) {
                   if (err) return console.error('error fetching client from pool', err);
                   client.query(strQuery, aValues, function (err, result) {
+                     done();
+
                      var iAfterQuery = (new Date()).getTime();
                      console.log("***** INSERTED " + iTotalRows + " rows in " + (iAfterQuery - iBeforeQuery) + "ms");
                      if (err) return console.error('error running INSERT query', err);
-                     doBulkQuery(client, done, aInsertGroup);
+                     doBulkQuery(aInsertGroup);
                   });
                });
             }
