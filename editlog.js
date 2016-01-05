@@ -17,8 +17,8 @@ var MAX_MS_BETWEEN_REQUESTS = 10000;
 var MIN_REVS_UNTIL_REQUEST = 20;
 
 // Caching / App state
-var aRevsToUpdate = [];
-var aRevsToInsert = [];
+var oRevsToGetDiffs = [];
+var iNumRevsToGetDiffs = 0;
 var iLastRequest = null;
 var oBadDiffs = {};
 
@@ -35,9 +35,40 @@ function logError (revnew, type, data, url) {
    });
 }
 
-function doBulkQuery (aInsertGroup) {
+function doQuery (strQuery, aValues, fnComplete, iTries) {
+   var iBeforeQuery = (new Date()).getTime();
+   pg.connect(conString, function(err, client, done) {
+      if (err) return console.error('error fetching client from pool', err);
+      client.query(strQuery, aValues, function (err, result) {
+         // Release the client to the pool
+         done();
+
+         if (err) {
+            console.error('client.query error on', strQuery.substr(0, 10), "...", err);
+            // For some reason I can't accurately detect this string
+            /*
+            if (err.toString() == "[Error: Connection terminated]") {
+               console.error('retrying connection...');
+               setTimeout(function () {
+                  doQuery(strQuery, aValues, fnComplete);
+               }, 1000);
+            } else {
+               return;
+            }
+            */
+         }
+
+         var iAfterQuery = (new Date()).getTime();
+         fnComplete(iAfterQuery - iBeforeQuery);
+      });
+   });
+}
+
+function doBulkQuery () {
    iLastRequest = (new Date()).getTime();
-   var path = "/w/api.php?action=query&prop=revisions&format=json&rvdiffto=prev&revids=" + aInsertGroup.join("|");
+
+   var aRevIds = Object.keys(oRevsToGetDiffs);
+   var path = "/w/api.php?action=query&prop=revisions&format=json&rvdiffto=prev&revids=" + aRevIds.join("|");
 
    var opts = {
       host: 'en.wikipedia.org',
@@ -46,7 +77,15 @@ function doBulkQuery (aInsertGroup) {
 
    var strUrl = opts.host + '/' + path;
 
-   console.log('***** Requesting ' + aInsertGroup.length + ' diffs from Wikipedia');
+   console.log('***** Requesting ' + aRevIds.length + ' diffs from Wikipedia');
+   var oRevsGettingDiffs = {};
+   aRevIds.forEach(function (revnew) {
+      oRevsGettingDiffs[revnew] = oRevsToGetDiffs[revnew];
+   });
+
+   oRevsToGetDiffs = {};
+   iNumRevsToGetDiffs = 0;
+
    http.get(opts, function (response) {
       var body = '';
 
@@ -62,7 +101,7 @@ function doBulkQuery (aInsertGroup) {
          }
 
          if (parsed && parsed.query && parsed.query.pages) {
-            var oUpdates = {};
+            var oQueryByRev = {};
             var iUpdates = 0;
             Object.keys(parsed.query.pages).forEach(function (pagenum) {
                var page = parsed.query.pages[pagenum];
@@ -71,7 +110,7 @@ function doBulkQuery (aInsertGroup) {
                   var revid = revision.revid;
                   if (revision.diff && revision.diff['*']) {
                      var diff = revision.diff['*'];
-                     oUpdates[revid] = { wiki: "en", diff: diff };
+                     oQueryByRev[revid] = { diff: diff };
                      iUpdates++;
                      delete oBadDiffs[revid];
                   } else if (revid) {
@@ -100,48 +139,63 @@ function doBulkQuery (aInsertGroup) {
                         delete oBadDiffs[revid];
                      } else {
                         console.log("***** Wikipedia returned no diff for " + revid.toString() + ", will query again later");
-                        aRevsToUpdate.push(revid);
+                        oRevsToGetDiffs[revid] = oRevsGettingDiffs[revid];
+                        iNumRevsToGetDiffs++;
                      }
+
+                     delete oRevsGettingDiffs[revid];
                   } else {
                      logError(revision.revid, "bad diff", page, strUrl);
+                     delete oRevsGettingDiffs[revid];
                   }
                } else {
                   logError(null, "bad revision", page, strUrl);
+                  delete oRevsGettingDiffs[revid];
                }
             });
 
             if (iUpdates > 0) {
-               var strQuery = "UPDATE wikiedits AS w SET diff = c.diff, updated = current_timestamp FROM (values ";
+               var strQuery = 'INSERT INTO wikiedits (revnew, revold, title, comment, wiki, username, diff) VALUES ';
                var aValues = [];
-               var i = 1;
-               var iRowCount = 0;
-               Object.keys(oUpdates).forEach(function (revnew) {
-                  var oUpdate = oUpdates[revnew];
+               var aKeys = Object.keys(oRevsGettingDiffs);
+               var i = 0;
+               aKeys.forEach(function (revnew) {
+                  var oRev = oRevsGettingDiffs[revnew];
+                  if (!oQueryByRev[revnew]) {
+                     console.log("***** Wikipedia entirely failed to return " + revnew + ", will query again later");
+                     oRevsToGetDiffs[revnew] = oRevsGettingDiffs[revnew];
+                     iNumRevsToGetDiffs++;
+                     return;
+                  }
 
-                  if (i !== 1) {
+                  if (i !== 0) {
                      strQuery += ', ';
                   }
 
-                  strQuery += ['($', i,
-                     ', $', i + 1,
-                     ', $', i + 2, ')'].join('');
+                  var y = (i * 7) + 1;
+                  strQuery += ['($', y,
+                     ', $', y + 1,
+                     ', $', y + 2,
+                     ', $', y + 3,
+                     ', $', y + 4,
+                     ', $', y + 5,
+                     ', $', y + 6, ')'].join('');
 
-                  i += 3;
-                  iRowCount++;
-
-                  aValues.push(parseInt(revnew), oUpdate.wiki, oUpdate.diff);
+                  i++;
+                  var oQuery = oQueryByRev[revnew];
+                  aValues.push(
+                     parseInt(revnew),
+                     parseInt(oRev.revold),
+                     oRev.title,
+                     oRev.comment,
+                     oRev.wiki,
+                     oRev.username,
+                     oQuery.diff
+                  );
                });
-               strQuery += ") AS c(revnew, wiki, diff) WHERE w.revnew = cast(c.revnew as int) AND w.wiki = c.wiki";
 
-               var iBeforeQuery = (new Date()).getTime();
-               pg.connect(conString, function(err, client, done) {
-                  if (err) return console.error('error fetching client from pool', err);
-                  client.query(strQuery, aValues, function (err, result) {
-                     done();
-                     var iAfterQuery = (new Date()).getTime();
-                     console.log("***** UPDATED " + iRowCount + " rows in " + (iAfterQuery - iBeforeQuery) + "ms");
-                     if (err) return console.error('error running UPDATE query', err);
-                  });
+               doQuery(strQuery, aValues, function (iMs) {
+                  console.log("***** INSERTED " + aKeys.length + " rows in " + iMs + "ms");
                });
             }
          } else {
@@ -159,7 +213,7 @@ function setupSocket () {
    // Requires socket.io-client 0.9.x:
    // browser code can load a minified Socket.IO JavaScript library;
    // standalone code can install via 'npm install socket.io-client@0.9.1'.
-   var socket = io.connect('stream.wikimedia.org/rc');
+   var socket = io.connect('stream.wikimedia.org/rc', { query: 'hidebots=1' });
 
    socket.on('connect', function () {
       console.log('***** CONNECTED to stream.wikimedia.org/rc');
@@ -186,7 +240,7 @@ function setupSocket () {
         revision: { new: 696823369, old: null } };
       */
 
-      if (message.bot) return;
+      //if (message.bot) return;
       var revision = message.revision;
       if ((!revision) || (!revision.old)) return;
 
@@ -195,64 +249,21 @@ function setupSocket () {
       var wiki = message.server_name.substring(0, 2);
 
       if (revision.new && revision.old) {
-         aRevsToUpdate.push(revision.new);
+         var revnew = revision.new;
+         iNumRevsToGetDiffs++;
+         oRevsToGetDiffs[revnew] = {
+            revnew: parseInt(revnew),
+            revold: parseInt(revision.old),
+            title: message.title,
+            comment: message.comment,
+            wiki: wiki,
+            username: message.user
+         };
 
-         aRevsToInsert.push([
-            revision.new,
-            revision.old,
-            message.title,
-            message.comment,
-            wiki,
-            message.user
-         ]);
-
-         if (aRevsToUpdate.length > MIN_REVS_UNTIL_REQUEST) {
+         if (iNumRevsToGetDiffs >= MIN_REVS_UNTIL_REQUEST) {
             var iBeforeQuery = (new Date()).getTime();
             if ((!iLastRequest) || (iBeforeQuery > (iLastRequest + MAX_MS_BETWEEN_REQUESTS))) {
-               var aInsertGroup = aRevsToUpdate;
-               aRevsToUpdate = [];
-
-               var strQuery = 'INSERT INTO wikiedits (revnew, revold, title, comment, wiki, username) VALUES ';
-               var aValues = [];
-               aRevsToInsert.forEach(function (aInsert, i) {
-                  if (i !== 0) {
-                     strQuery += ', ';
-                  }
-
-                  var y = (i * 6) + 1;
-                  strQuery += ['($', y,
-                     ', $', y + 1,
-                     ', $', y + 2,
-                     ', $', y + 3,
-                     ', $', y + 4,
-                     ', $', y + 5, ')'].join('');
-
-                  aValues.push(
-                     parseInt(aInsert[0]),
-                     parseInt(aInsert[1]),
-                     aInsert[2],
-                     aInsert[3],
-                     aInsert[4],
-                     aInsert[5]
-                  );
-               });
-
-               var iTotalRows = aRevsToInsert.length;
-               aRevsToInsert = [];
-               //console.log(strQuery);
-               //console.log(aValues);
-
-               pg.connect(conString, function(err, client, done) {
-                  if (err) return console.error('error fetching client from pool', err);
-                  client.query(strQuery, aValues, function (err, result) {
-                     done();
-
-                     var iAfterQuery = (new Date()).getTime();
-                     console.log("***** INSERTED " + iTotalRows + " rows in " + (iAfterQuery - iBeforeQuery) + "ms");
-                     if (err) return console.error('error running INSERT query', err);
-                     doBulkQuery(aInsertGroup);
-                  });
-               });
+               doBulkQuery();
             }
          }
       }
