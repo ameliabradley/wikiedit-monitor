@@ -64,6 +64,33 @@ function doQuery (strQuery, aValues, fnComplete, iTries) {
    });
 }
 
+function attemptRetryForBadDiff(revid, data, strError, page, strUrl) {
+   if (oBadDiffs[revid]) {
+      oBadDiffs[revid]++;
+   } else {
+      oBadDiffs[revid] = 1;
+   }
+
+   // Three strikes and I'm not querying for this revision's diff anymore
+   if (oBadDiffs[revid] > 3) {
+      // Something's wrong with this revision! :(
+      // NOTE: Usually happens with an admin's revdelete revision
+      // EX: https://en.wikipedia.org/w/api.php?action=query&prop=revisions&format=json&rvdiffto=prev&revids=696894315
+      // but sometimes it's just the server cache being unusually slow
+
+      // TODO: I should go back and look at previously logged revisions for this page
+      // to see if any I've logged have been deleted
+      // Keep in mind though, there MAY be revdelete types that don't exhibit this behavior?
+      
+      logError(revid, "GAVE UP REQUERYING: " + strError, page, strUrl);
+      delete oBadDiffs[revid];
+   } else {
+      console.log("***** BADREV (" + revid.toString() + ") " + strError);
+      oRevsToGetDiffs[revid] = data;
+      iNumRevsToGetDiffs++;
+   }
+}
+
 function doBulkQuery () {
    iLastRequest = (new Date()).getTime();
 
@@ -75,7 +102,7 @@ function doBulkQuery () {
       path: path
    };
 
-   var strUrl = opts.host + '/' + path;
+   var strUrl = opts.host + path;
 
    console.log('***** Requesting ' + aRevIds.length + ' diffs from Wikipedia');
    var oRevsGettingDiffs = {};
@@ -86,7 +113,12 @@ function doBulkQuery () {
    oRevsToGetDiffs = {};
    iNumRevsToGetDiffs = 0;
 
+   var iBeforeQuery = (new Date()).getTime();
    http.get(opts, function (response) {
+      var iAfterQuery = (new Date()).getTime();
+      var iTotalMs = Math.round((iAfterQuery - iBeforeQuery) / 10) / 100;
+      console.log('***** Wikipedia returned in ' + iTotalMs + 's');
+
       var body = '';
 
       response.on('data', function (chunk) {
@@ -100,54 +132,32 @@ function doBulkQuery () {
             // App will log an error when it realizes parsed is empty
          }
 
+         var page;
+
          if (parsed && parsed.query && parsed.query.pages) {
             var oQueryByRev = {};
             var iUpdates = 0;
             Object.keys(parsed.query.pages).forEach(function (pagenum) {
-               var page = parsed.query.pages[pagenum];
-               if (page && page.revisions && page.revisions[0]) {
-                  var revision = page.revisions[0];
-                  var revid = revision.revid;
-                  if (revision.diff && revision.diff['*']) {
-                     var diff = revision.diff['*'];
-                     oQueryByRev[revid] = { diff: diff };
-                     iUpdates++;
-                     delete oBadDiffs[revid];
-                  } else if (revid) {
-                     // This is a bug where the diffs haven't been cached yet
-                     // Can solve either by waiting or requesting individually
-                     // SEE: https://phabricator.wikimedia.org/T31223
-
-                     if (oBadDiffs[revid]) {
-                        oBadDiffs[revid]++;
-                     } else {
-                        oBadDiffs[revid] = 1;
-                     }
-
-                     // Three strikes and I'm not querying for this revision's diff anymore
-                     if (oBadDiffs[revid] > 3) {
-                        // Something's wrong with this revision! :(
-                        // NOTE: Usually happens with an admin's revdelete revision
-                        // EX: https://en.wikipedia.org/w/api.php?action=query&prop=revisions&format=json&rvdiffto=prev&revids=696894315
-                        // but sometimes it's just the server cache being unusually slow
-
-                        // TODO: I should go back and look at previously logged revisions for this page
-                        // to see if any I've logged have been deleted
-                        // Keep in mind though, there MAY be revdelete types that don't exhibit this behavior?
-                        
-                        logError(revid, "crazy revision", page, strUrl);
+               page = parsed.query.pages[pagenum];
+               if (page && page.revisions) {
+                  page.revisions.forEach(function (revision) {
+                     var revid = revision.revid;
+                     if (revision.diff && revision.diff['*']) {
+                        var diff = revision.diff['*'];
+                        oQueryByRev[revid] = { diff: diff };
+                        iUpdates++;
                         delete oBadDiffs[revid];
+                     } else if (revid) {
+                        // This is a probably a bug where the diffs haven't been cached yet
+                        // Can solve either by waiting or requesting individually
+                        // SEE: https://phabricator.wikimedia.org/T31223
+                        attemptRetryForBadDiff(revid, oRevsGettingDiffs[revid], "Wikipedia returned empty diff", page, strUrl);
+                        delete oRevsGettingDiffs[revid];
                      } else {
-                        console.log("***** Wikipedia returned no diff for " + revid.toString() + ", will query again later");
-                        oRevsToGetDiffs[revid] = oRevsGettingDiffs[revid];
-                        iNumRevsToGetDiffs++;
+                        logError(revision.revid, "bad diff", page, strUrl);
+                        delete oRevsGettingDiffs[revid];
                      }
-
-                     delete oRevsGettingDiffs[revid];
-                  } else {
-                     logError(revision.revid, "bad diff", page, strUrl);
-                     delete oRevsGettingDiffs[revid];
-                  }
+                  });
                } else {
                   logError(null, "bad revision", page, strUrl);
                   delete oRevsGettingDiffs[revid];
@@ -162,9 +172,7 @@ function doBulkQuery () {
                aKeys.forEach(function (revnew) {
                   var oRev = oRevsGettingDiffs[revnew];
                   if (!oQueryByRev[revnew]) {
-                     console.log("***** Wikipedia entirely failed to return " + revnew + ", will query again later");
-                     oRevsToGetDiffs[revnew] = oRevsGettingDiffs[revnew];
-                     iNumRevsToGetDiffs++;
+                     attemptRetryForBadDiff(revnew, oRevsGettingDiffs[revnew], "Wikipedia failed to return anything", page, strUrl);
                      return;
                   }
 
