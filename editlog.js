@@ -1,7 +1,6 @@
 var fs = require('fs'),
 	http = require('https'),
 	path = require('path'),
-	_ = require('underscore');
    pg = require('pg'),
    sprintf = require("sprintf-js").sprintf,
    util = require('util'),
@@ -22,8 +21,8 @@ var iNumRevsToGetDiffs = 0;
 var iLastRequest = null;
 var oBadDiffs = {};
 
-function logError (revnew, type, data, url) {
-   console.error(type, util.inspect(data, { showHidden: false, depth: null }));
+function logError (revnew, type, data, url, bConsole) {
+   //if (bConsole === false) console.log(type, util.inspect(data, { showHidden: false, depth: null }));
    
    pg.connect(conString, function(err, client, done) {
       if (err) return console.error('error fetching client from pool', err);
@@ -82,10 +81,10 @@ function attemptRetryForBadDiff(revid, data, strError, page, strUrl) {
       // to see if any I've logged have been deleted
       // Keep in mind though, there MAY be revdelete types that don't exhibit this behavior?
       
-      logError(revid, "GAVE UP REQUERYING: " + strError, page, strUrl);
+      logError(revid, "GAVE UP REQUERYING: " + strError, page, strUrl, false);
       delete oBadDiffs[revid];
    } else {
-      console.log("***** BADREV (" + revid.toString() + ") " + strError);
+      //console.log("***** BADREV (" + revid.toString() + ") " + strError);
       oRevsToGetDiffs[revid] = data;
       iNumRevsToGetDiffs++;
    }
@@ -252,7 +251,7 @@ function setupSocket () {
       var revision = message.revision;
       if ((!revision) || (!revision.old)) return;
 
-      console.log(sprintf("%-20.20s | %-30.30s | %-60.60s", message.user, message.title, message.comment));
+      console.log(sprintf("%-20.20s | %-30.30s | %-30.30s", message.user, message.title, message.comment));
 
       var wiki = message.server_name.substring(0, 2);
 
