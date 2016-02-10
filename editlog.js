@@ -14,6 +14,7 @@ var conString = config.conString;
 // This app caches revs and queries the diffs in bulk
 var MAX_MS_BETWEEN_REQUESTS = 10000;
 var MIN_REVS_UNTIL_REQUEST = 20;
+var MAX_REQUEST_REVS = 50;
 
 // Caching / App state
 var oRevsToGetDiffs = [];
@@ -93,7 +94,11 @@ function attemptRetryForBadDiff(revid, data, strError, page, strUrl) {
 function doBulkQuery () {
    iLastRequest = (new Date()).getTime();
 
-   var aRevIds = Object.keys(oRevsToGetDiffs);
+   var originalRevs = oRevsToGetDiffs;
+   var originalRevIds = Object.keys(oRevsToGetDiffs);
+   var keepRevIds = originalRevIds.slice(MAX_REQUEST_REVS);
+   var aRevIds = originalRevIds.slice(0, MAX_REQUEST_REVS);
+
    var path = "/w/api.php?action=query&prop=revisions&format=json&rvdiffto=prev&revids=" + aRevIds.join("|");
 
    var opts = {
@@ -110,7 +115,10 @@ function doBulkQuery () {
    });
 
    oRevsToGetDiffs = {};
-   iNumRevsToGetDiffs = 0;
+   keepRevIds.forEach(function (revnew) {
+      oRevsToGetDiffs[revnew] = originalRevs[revnew];
+   });
+   iNumRevsToGetDiffs = keepRevIds.length;
 
    var iBeforeQuery = (new Date()).getTime();
    http.get(opts, function (response) {
@@ -255,8 +263,8 @@ function setupSocket () {
 
       var wiki = message.server_name.substring(0, 2);
 
-      if (revision.new && revision.old) {
-         var revnew = revision.new;
+      if (revision['new'] && revision.old) {
+         var revnew = revision['new'];
          iNumRevsToGetDiffs++;
          oRevsToGetDiffs[revnew] = {
             revnew: parseInt(revnew),
