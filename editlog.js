@@ -199,7 +199,7 @@ function doBulkQuery () {
                          ) {
                         // If a revid is included in parsed.query.badrevids, it may be
                         // available in a later query result.
-                        attemptRetryForBadDiff(revnew, oRev, "Wikipedia returned empty diff", {}, strUrl);
+                        attemptRetryForBadDiff(revnew, oRev, "Wikipedia placed the revision in badrevids", {}, strUrl);
                      } else {
                         logError(revnew, "Wikipedia failed to return anything", body, strUrl);
                      }
