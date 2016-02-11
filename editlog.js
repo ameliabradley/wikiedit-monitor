@@ -191,7 +191,18 @@ function doBulkQuery () {
                aKeys.forEach(function (revnew) {
                   var oRev = oRevsGettingDiffs[revnew];
                   if (!oQueryByRev[revnew]) {
-                     logError(revnew, "Wikipedia failed to return anything", body, strUrl);
+                     if(
+                         parsed
+                         && 'query' in parsed
+                         && 'badrevids' in parsed.query
+                         && revnew in parsed.query.badrevids
+                         ) {
+                        // If a revid is included in parsed.query.badrevids, it may be
+                        // available in a later query result.
+                        attemptRetryForBadDiff(revnew, oRev, "Wikipedia returned empty diff", {}, strUrl);
+                     } else {
+                        logError(revnew, "Wikipedia failed to return anything", body, strUrl);
+                     }
                      return;
                   }
 
