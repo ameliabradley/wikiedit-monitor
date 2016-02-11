@@ -1,10 +1,12 @@
 var fs = require('fs'),
 	http = require('https'),
 	path = require('path'),
-   pg = require('pg'),
    sprintf = require("sprintf-js").sprintf,
    util = require('util'),
-   io = require('socket.io-client');
+   io = require('socket.io-client')
+   mongodb = require('mongodb');
+
+var MongoClient = mongodb.MongoClient;
 
 // Get the configuration
 var configPath = path.join(__dirname, "config.json");
@@ -25,43 +27,37 @@ var oBadDiffs = {};
 function logError (revnew, type, data, url, bConsole) {
    //if (bConsole === false) console.log(type, util.inspect(data, { showHidden: false, depth: null }));
    
-   pg.connect(conString, function(err, client, done) {
-      if (err) return console.error('error fetching client from pool', err);
+  MongoClient.connect(conString, function(err, db) {
+    if (err) return console.error('error fetching client from pool', err);
 
-      client.query('INSERT INTO errorlog (revnew, type, data, url) VALUES ($1, $2, $3, $4)', [revnew, type, data, url], function (err, result) {
-         done(client);
-         if (err) return console.error('error running ERROR query', err);
-      });
-   });
+    db.collection('errorlog').insertOne( {
+      revnew: revnew,
+      type: type,
+      data: data,
+      url: url
+    }, function(err, result) {
+      db.close();
+      if (err) return console.error('error inserting an error into the errorlog collection', err);
+    });
+  });
 }
 
-function doQuery (strQuery, aValues, fnComplete, iTries) {
-   var iBeforeQuery = (new Date()).getTime();
-   pg.connect(conString, function(err, client, done) {
-      if (err) return console.error('error fetching client from pool', err);
-      client.query(strQuery, aValues, function (err, result) {
-         // Release the client to the pool
-         done();
+function doQuery (aRecords, fnComplete, iTries) {
+  var iBeforeQuery = (new Date()).getTime();
 
-         if (err) {
-            console.error('client.query error on', strQuery.substr(0, 10), "...", err);
-            // For some reason I can't accurately detect this string
-            /*
-            if (err.toString() == "[Error: Connection terminated]") {
-               console.error('retrying connection...');
-               setTimeout(function () {
-                  doQuery(strQuery, aValues, fnComplete);
-               }, 1000);
-            } else {
-               return;
-            }
-            */
-         }
+  MongoClient.connect(conString, function(err, db) {
+    if (err) return console.error('error fetching client from pool', err);
 
-         var iAfterQuery = (new Date()).getTime();
-         fnComplete(iAfterQuery - iBeforeQuery);
-      });
-   });
+    db.collection('wikiedits').insert(aRecords,
+      function(err, result) {
+        db.close();
+        if (err) console.error('error inserting an edit into the wikiedits collection', err);
+ 
+        var iAfterQuery = (new Date()).getTime();
+        fnComplete(iAfterQuery - iBeforeQuery);
+
+     });
+  });
 }
 
 function attemptRetryForBadDiff(revid, data, strError, page, strUrl) {
@@ -172,10 +168,8 @@ function doBulkQuery () {
             });
 
             if (iUpdates > 0) {
-               var strQuery = 'INSERT INTO wikiedits (revnew, revold, title, comment, wiki, username, diff) VALUES ';
-               var aValues = [];
+               var aRecords = [];
                var aKeys = Object.keys(oRevsGettingDiffs);
-               var i = 0;
                aKeys.forEach(function (revnew) {
                   var oRev = oRevsGettingDiffs[revnew];
                   if (!oQueryByRev[revnew]) {
@@ -183,33 +177,19 @@ function doBulkQuery () {
                      return;
                   }
 
-                  if (i !== 0) {
-                     strQuery += ', ';
-                  }
-
-                  var y = (i * 7) + 1;
-                  strQuery += ['($', y,
-                     ', $', y + 1,
-                     ', $', y + 2,
-                     ', $', y + 3,
-                     ', $', y + 4,
-                     ', $', y + 5,
-                     ', $', y + 6, ')'].join('');
-
-                  i++;
                   var oQuery = oQueryByRev[revnew];
-                  aValues.push(
-                     parseInt(revnew),
-                     parseInt(oRev.revold),
-                     oRev.title,
-                     oRev.comment,
-                     oRev.wiki,
-                     oRev.username,
-                     oQuery.diff
-                  );
+                  aRecords.push({
+                     revnew: parseInt(revnew),
+                     revold: parseInt(oRev.revold),
+                     title: oRev.title,
+                     comment: oRev.comment,
+                     wiki: oRev.wiki,
+                     username: oRev.username,
+                     diff: oQuery.diff
+                  });
                });
 
-               doQuery(strQuery, aValues, function (iMs) {
+               doQuery(aRecords, function (iMs) {
                   console.log("***** INSERTED " + aKeys.length + " rows in " + iMs + "ms");
                });
             }

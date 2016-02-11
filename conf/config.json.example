@@ -1,7 +1,3 @@
 {
-  "ircNickname": "test-wikistream", 
-  "ircRealName": "http://github.com/edsu/wikistream", 
-  "log": false, 
-  "transports": ["websocket", "flashsocket", "htmlfile", "xhr-polling", "jsonp-polling"],
-  "port": 3000
+  "conString": "mongodb://localhost:27017/wikimonitor"
 }
