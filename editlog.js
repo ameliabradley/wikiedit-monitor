@@ -17,6 +17,7 @@ var conString = config.conString;
 var MAX_MS_BETWEEN_REQUESTS = 10000;
 var MIN_REVS_UNTIL_REQUEST = 20;
 var MAX_REQUEST_REVS = 50;
+var MAX_NOTCACHED_RETRIES = 50;
 
 // Caching / App state
 var oRevsToGetDiffs = [];
@@ -68,7 +69,7 @@ function attemptRetryForBadDiff(revid, data, strError, page, strUrl) {
    }
 
    // Three strikes and I'm not querying for this revision's diff anymore
-   if (oBadDiffs[revid] > 3) {
+   if (oBadDiffs[revid] > MAX_NOTCACHED_RETRIES) {
       // Something's wrong with this revision! :(
       // NOTE: Usually happens with an admin's revdelete revision
       // EX: https://en.wikipedia.org/w/api.php?action=query&prop=revisions&format=json&rvdiffto=prev&revids=696894315
@@ -150,11 +151,14 @@ function doBulkQuery () {
                         oQueryByRev[revid] = { diff: diff };
                         iUpdates++;
                         delete oBadDiffs[revid];
-                     } else if (revid) {
+                     } else if ('diff' in revision && 'notcached' in revision.diff) {
                         // This is a probably a bug where the diffs haven't been cached yet
                         // Can solve either by waiting or requesting individually
                         // SEE: https://phabricator.wikimedia.org/T31223
                         attemptRetryForBadDiff(revid, oRevsGettingDiffs[revid], "Wikipedia returned empty diff", page, strUrl);
+                        delete oRevsGettingDiffs[revid];
+                     } else if (revid) {
+                        logError(revid, "Probably revdelete", page, strUrl);
                         delete oRevsGettingDiffs[revid];
                      } else {
                         logError(revision.revid, "bad diff", page, strUrl);
@@ -173,7 +177,7 @@ function doBulkQuery () {
                aKeys.forEach(function (revnew) {
                   var oRev = oRevsGettingDiffs[revnew];
                   if (!oQueryByRev[revnew]) {
-                     attemptRetryForBadDiff(revnew, oRevsGettingDiffs[revnew], "Wikipedia failed to return anything", page, strUrl);
+                     logError(revnew, "Wikipedia failed to return anything", {}, strUrl);
                      return;
                   }
 
