@@ -43,6 +43,20 @@ function logError (revnew, type, data, url, bConsole) {
   });
 }
 
+function saveSocketUpdate (record) {
+   //if (bConsole === false) console.log(type, util.inspect(data, { showHidden: false, depth: null }));
+   
+  MongoClient.connect(conString, function(err, db) {
+    if (err) return console.error('error fetching client from pool', err);
+
+    db.collection('socketdata').insertOne( record,
+        function(err, result) {
+          db.close();
+          if (err) return console.error('error inserting an socket data record into the socketdata collection', err);
+        });
+  });
+}
+
 function doQuery (aRecords, fnComplete, iTries) {
   var iBeforeQuery = (new Date()).getTime();
 
@@ -177,7 +191,7 @@ function doBulkQuery () {
                aKeys.forEach(function (revnew) {
                   var oRev = oRevsGettingDiffs[revnew];
                   if (!oQueryByRev[revnew]) {
-                     logError(revnew, "Wikipedia failed to return anything", {}, strUrl);
+                     logError(revnew, "Wikipedia failed to return anything", body, strUrl);
                      return;
                   }
 
@@ -213,10 +227,14 @@ function setupSocket () {
    // browser code can load a minified Socket.IO JavaScript library;
    // standalone code can install via 'npm install socket.io-client@0.9.1'.
    var socket = io.connect('stream.wikimedia.org/rc', { query: 'hidebots=1' });
+   var subscribed = false;
 
    socket.on('connect', function () {
       console.log('***** CONNECTED to stream.wikimedia.org/rc');
-      socket.emit('subscribe', 'en.wikipedia.org');
+      if(subscribed === false) {
+        socket.emit('subscribe', 'en.wikipedia.org');
+        subscribed = true;
+      }
    });
 
    socket.on('change', function (message) {
@@ -238,6 +256,7 @@ function setupSocket () {
         minor: false,
         revision: { new: 696823369, old: null } };
       */
+      saveSocketUpdate({message: message})
 
       //if (message.bot) return;
       var revision = message.revision;
@@ -268,9 +287,38 @@ function setupSocket () {
       }
    });
 
-   socket.on('error', function (err) {
-      logError(null, "http error", err);
-      setTimeout(setupSocket, 10000);
+   socket.on('disconnect', function() {
+     console.log('***** Socket Disconnected');
+   });
+
+   socket.on('connect_error', function(err){
+      console.log('***** Socket Connection Error', err);
+      logError(null, 'socket connect event error', err);
+   });
+
+   socket.on('reconnect_error', function(err){
+      console.log('***** Socket Reconnection Error', err);
+      logError(null, 'socket reconnect event error', err);
+   });
+
+   socket.on('reconnect_failed', function(){
+      console.log('***** Socket Reconnection Failed');
+   });
+
+   socket.on('connect_timeout', function(){
+      console.log('***** Socket Connection Timeout');
+   });
+
+   socket.on('reconnect', function(attemptNumber){
+      console.log('***** Socket Reconnect ', attemptNumber);
+   });
+
+   socket.on('reconnect_attempt', function(){
+      console.log('***** Socket Reconnection Attempt');
+   });
+
+   socket.on('reconnecting', function(attemptNumber){
+      console.log('***** Socket Reconnecting...', attemptNumber);
    });
 }
 
