@@ -39,7 +39,7 @@ function handleRequest(request, res){
 
       if (urlObject.query.diff) {
          var revnew = urlObject.query.diff;
-         db.collection('wikiedits').find({ revnew: revnew, wiki: wiki }).toArray(function (err, rows) {
+         db.collection('wikiedits').find({ revnew: parseInt(revnew), wiki: wiki }).toArray(function (err, rows) {
            db.close();
            if (err) return error("db error: " + err);
 
@@ -48,8 +48,8 @@ function handleRequest(request, res){
             var row = rows[0];
 
             res.write("<h1><a href='/?title=" + row.title + "'>" + row.title + "</a></h1>");
-            res.write("<b>User:</b> <a href='http://" + wiki + ".wikipedia.org/wiki/User:" + row.user + "'>");
-            res.write(row.user);
+            res.write("<b>User:</b> <a href='http://" + wiki + ".wikipedia.org/wiki/User:" + row.username + "'>");
+            res.write(row.username);
             res.write("</a><br>");
 
             res.write("<b>Comment:</b> <i>");
@@ -88,8 +88,8 @@ function handleRequest(request, res){
                   res.write("</td>");
 
                   res.write("<td class='user'>");
-                     res.write("<a href='http://" + wiki + ".wikipedia.org/wiki/User:" + row.user + "'>");
-                     res.write(row.user || "");
+                     res.write("<a href='http://" + wiki + ".wikipedia.org/wiki/User:" + row.username + "'>");
+                     res.write(row.username || "");
                      res.write("</a>");
                   res.write("</td>");
 
@@ -109,14 +109,14 @@ function handleRequest(request, res){
              return error("db error: " + err);
            }
 
-           if (rows.length === 0) {
+           if (errorRows.length === 0) {
              db.close();
              return res.end('No errors found! :(');
            }
 
            var revIdList = [];
            for(var z = 0; z < errorRows.length; z++) {
-             revIdList.push(errorRows[i].revnew);
+             revIdList.push(parseInt(errorRows[z].revnew));
            }
 
            db.collection('wikiedits').find({ revnew: { $in:  revIdList }, wiki: wiki }).toArray(function (err, rows) {
@@ -131,7 +131,7 @@ function handleRequest(request, res){
               var errorRow = errorRows[e];
               for (var i = 0; i < rows.length; i++) {
                  var row = rows[i];
-                 if(errorRow.revnew !== row.revnew) continue;
+                 if(parseInt(errorRow.revnew) !== row.revnew) continue;
 
                  res.write("<tr>");
                     res.write("<td>");
@@ -163,9 +163,9 @@ function handleRequest(request, res){
                     res.write("</td>");
 
                     res.write("<td class='user'>");
-                       if (row.user) {
-                          res.write("<a href='http://" + wiki + ".wikipedia.org/wiki/User:" + row.user + "'>");
-                          res.write(row.user);
+                       if (row.username) {
+                          res.write("<a href='http://" + wiki + ".wikipedia.org/wiki/User:" + row.username + "'>");
+                          res.write(row.username);
                           res.write("</a>");
                        }
                     res.write("</td>");
