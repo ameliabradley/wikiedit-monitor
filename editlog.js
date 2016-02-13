@@ -1,10 +1,12 @@
 var fs = require('fs'),
 	http = require('https'),
 	path = require('path'),
-   pg = require('pg'),
    sprintf = require("sprintf-js").sprintf,
    util = require('util'),
-   io = require('socket.io-client');
+   io = require('socket.io-client')
+   mongodb = require('mongodb');
+
+var MongoClient = mongodb.MongoClient;
 
 // Get the configuration
 var configPath = path.join(__dirname, "config.json");
@@ -15,6 +17,7 @@ var conString = config.conString;
 var MAX_MS_BETWEEN_REQUESTS = 10000;
 var MIN_REVS_UNTIL_REQUEST = 20;
 var MAX_REQUEST_REVS = 50;
+var MAX_NOTCACHED_RETRIES = 50;
 
 // Caching / App state
 var oRevsToGetDiffs = [];
@@ -25,43 +28,51 @@ var oBadDiffs = {};
 function logError (revnew, type, data, url, bConsole) {
    //if (bConsole === false) console.log(type, util.inspect(data, { showHidden: false, depth: null }));
    
-   pg.connect(conString, function(err, client, done) {
-      if (err) return console.error('error fetching client from pool', err);
+  MongoClient.connect(conString, function(err, db) {
+    if (err) return console.error('error fetching client from pool', err);
 
-      client.query('INSERT INTO errorlog (revnew, type, data, url) VALUES ($1, $2, $3, $4)', [revnew, type, data, url], function (err, result) {
-         done(client);
-         if (err) return console.error('error running ERROR query', err);
-      });
-   });
+    db.collection('errorlog').insertOne( {
+      revnew: revnew,
+      type: type,
+      data: data,
+      url: url
+    }, function(err, result) {
+      db.close();
+      if (err) return console.error('error inserting an error into the errorlog collection', err);
+    });
+  });
 }
 
-function doQuery (strQuery, aValues, fnComplete, iTries) {
-   var iBeforeQuery = (new Date()).getTime();
-   pg.connect(conString, function(err, client, done) {
-      if (err) return console.error('error fetching client from pool', err);
-      client.query(strQuery, aValues, function (err, result) {
-         // Release the client to the pool
-         done();
+function saveSocketUpdate (record) {
+   //if (bConsole === false) console.log(type, util.inspect(data, { showHidden: false, depth: null }));
+   
+  MongoClient.connect(conString, function(err, db) {
+    if (err) return console.error('error fetching client from pool', err);
 
-         if (err) {
-            console.error('client.query error on', strQuery.substr(0, 10), "...", err);
-            // For some reason I can't accurately detect this string
-            /*
-            if (err.toString() == "[Error: Connection terminated]") {
-               console.error('retrying connection...');
-               setTimeout(function () {
-                  doQuery(strQuery, aValues, fnComplete);
-               }, 1000);
-            } else {
-               return;
-            }
-            */
-         }
+    db.collection('socketdata').insertOne( record,
+        function(err, result) {
+          db.close();
+          if (err) return console.error('error inserting an socket data record into the socketdata collection', err);
+        });
+  });
+}
 
-         var iAfterQuery = (new Date()).getTime();
-         fnComplete(iAfterQuery - iBeforeQuery);
-      });
-   });
+function doQuery (aRecords, fnComplete, iTries) {
+  var iBeforeQuery = (new Date()).getTime();
+
+  MongoClient.connect(conString, function(err, db) {
+    if (err) return console.error('error fetching client from pool', err);
+
+    db.collection('wikiedits').insert(aRecords,
+      function(err, result) {
+        db.close();
+        if (err) console.error('error inserting an edit into the wikiedits collection', err);
+ 
+        var iAfterQuery = (new Date()).getTime();
+        fnComplete(iAfterQuery - iBeforeQuery);
+
+     });
+  });
 }
 
 function attemptRetryForBadDiff(revid, data, strError, page, strUrl) {
@@ -72,7 +83,7 @@ function attemptRetryForBadDiff(revid, data, strError, page, strUrl) {
    }
 
    // Three strikes and I'm not querying for this revision's diff anymore
-   if (oBadDiffs[revid] > 3) {
+   if (oBadDiffs[revid] > MAX_NOTCACHED_RETRIES) {
       // Something's wrong with this revision! :(
       // NOTE: Usually happens with an admin's revdelete revision
       // EX: https://en.wikipedia.org/w/api.php?action=query&prop=revisions&format=json&rvdiffto=prev&revids=696894315
@@ -154,11 +165,14 @@ function doBulkQuery () {
                         oQueryByRev[revid] = { diff: diff };
                         iUpdates++;
                         delete oBadDiffs[revid];
-                     } else if (revid) {
+                     } else if ('diff' in revision && 'notcached' in revision.diff) {
                         // This is a probably a bug where the diffs haven't been cached yet
                         // Can solve either by waiting or requesting individually
                         // SEE: https://phabricator.wikimedia.org/T31223
                         attemptRetryForBadDiff(revid, oRevsGettingDiffs[revid], "Wikipedia returned empty diff", page, strUrl);
+                        delete oRevsGettingDiffs[revid];
+                     } else if (revid) {
+                        logError(revid, "Probably revdelete", page, strUrl);
                         delete oRevsGettingDiffs[revid];
                      } else {
                         logError(revision.revid, "bad diff", page, strUrl);
@@ -172,44 +186,39 @@ function doBulkQuery () {
             });
 
             if (iUpdates > 0) {
-               var strQuery = 'INSERT INTO wikiedits (revnew, revold, title, comment, wiki, username, diff) VALUES ';
-               var aValues = [];
+               var aRecords = [];
                var aKeys = Object.keys(oRevsGettingDiffs);
-               var i = 0;
                aKeys.forEach(function (revnew) {
                   var oRev = oRevsGettingDiffs[revnew];
                   if (!oQueryByRev[revnew]) {
-                     attemptRetryForBadDiff(revnew, oRevsGettingDiffs[revnew], "Wikipedia failed to return anything", page, strUrl);
+                     if(
+                         parsed
+                         && 'query' in parsed
+                         && 'badrevids' in parsed.query
+                         && revnew in parsed.query.badrevids
+                         ) {
+                        // If a revid is included in parsed.query.badrevids, it may be
+                        // available in a later query result.
+                        attemptRetryForBadDiff(revnew, oRev, "Wikipedia placed the revision in badrevids", {}, strUrl);
+                     } else {
+                        logError(revnew, "Wikipedia failed to return anything", body, strUrl);
+                     }
                      return;
                   }
 
-                  if (i !== 0) {
-                     strQuery += ', ';
-                  }
-
-                  var y = (i * 7) + 1;
-                  strQuery += ['($', y,
-                     ', $', y + 1,
-                     ', $', y + 2,
-                     ', $', y + 3,
-                     ', $', y + 4,
-                     ', $', y + 5,
-                     ', $', y + 6, ')'].join('');
-
-                  i++;
                   var oQuery = oQueryByRev[revnew];
-                  aValues.push(
-                     parseInt(revnew),
-                     parseInt(oRev.revold),
-                     oRev.title,
-                     oRev.comment,
-                     oRev.wiki,
-                     oRev.username,
-                     oQuery.diff
-                  );
+                  aRecords.push({
+                     revnew: parseInt(revnew),
+                     revold: parseInt(oRev.revold),
+                     title: oRev.title,
+                     comment: oRev.comment,
+                     wiki: oRev.wiki,
+                     username: oRev.username,
+                     diff: oQuery.diff
+                  });
                });
 
-               doQuery(strQuery, aValues, function (iMs) {
+               doQuery(aRecords, function (iMs) {
                   console.log("***** INSERTED " + aKeys.length + " rows in " + iMs + "ms");
                });
             }
@@ -229,10 +238,14 @@ function setupSocket () {
    // browser code can load a minified Socket.IO JavaScript library;
    // standalone code can install via 'npm install socket.io-client@0.9.1'.
    var socket = io.connect('stream.wikimedia.org/rc', { query: 'hidebots=1' });
+   var subscribed = false;
 
    socket.on('connect', function () {
       console.log('***** CONNECTED to stream.wikimedia.org/rc');
-      socket.emit('subscribe', 'en.wikipedia.org');
+      if(subscribed === false) {
+        socket.emit('subscribe', 'en.wikipedia.org');
+        subscribed = true;
+      }
    });
 
    socket.on('change', function (message) {
@@ -254,6 +267,7 @@ function setupSocket () {
         minor: false,
         revision: { new: 696823369, old: null } };
       */
+      saveSocketUpdate({message: message})
 
       //if (message.bot) return;
       var revision = message.revision;
@@ -284,9 +298,38 @@ function setupSocket () {
       }
    });
 
-   socket.on('error', function (err) {
-      logError(null, "http error", err);
-      setTimeout(setupSocket, 10000);
+   socket.on('disconnect', function() {
+     console.log('***** Socket Disconnected');
+   });
+
+   socket.on('connect_error', function(err){
+      console.log('***** Socket Connection Error', err);
+      logError(null, 'socket connect event error', err);
+   });
+
+   socket.on('reconnect_error', function(err){
+      console.log('***** Socket Reconnection Error', err);
+      logError(null, 'socket reconnect event error', err);
+   });
+
+   socket.on('reconnect_failed', function(){
+      console.log('***** Socket Reconnection Failed');
+   });
+
+   socket.on('connect_timeout', function(){
+      console.log('***** Socket Connection Timeout');
+   });
+
+   socket.on('reconnect', function(attemptNumber){
+      console.log('***** Socket Reconnect ', attemptNumber);
+   });
+
+   socket.on('reconnect_attempt', function(){
+      console.log('***** Socket Reconnection Attempt');
+   });
+
+   socket.on('reconnecting', function(attemptNumber){
+      console.log('***** Socket Reconnecting...', attemptNumber);
    });
 }
 
