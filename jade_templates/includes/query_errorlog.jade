@@ -1,0 +1,29 @@
+h1 Error Log
+table(class='errorlog')
+  tr
+    th  diff
+    th  timestamp
+    th  type
+    th  Title
+    th  User
+    th  Comment
+
+  each row in rows
+    tr
+      td
+        if row.revnew
+          a(href='?diff='+row.revnew).
+            (logged)
+          a(href='https://'+wiki+'.wikipedia.org/w/api.php?action=query&prop=revisions&format=json&rvdiffto=prev&revids=' + row.revnew).
+            (wikipedia)
+      td= formatDate(row.created)
+      td= row.type
+      td(class='title')
+        if row.title
+          a(href='?title='+row.title)= row.title
+      td(class='user')
+        if row.username
+          a(href='http://' + wiki + '.wikipedia.org/wiki/User:' + row.username)= row.username
+      td(class='comment')
+        if row.comment
+          i= row.comment
