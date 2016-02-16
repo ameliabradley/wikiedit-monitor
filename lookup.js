@@ -1,6 +1,5 @@
 //Lets require/import the HTTP module
 var http = require('http');
-var pg = require('pg');
 var url = require('url');
 var fs = require('fs');
 var path = require('path');
