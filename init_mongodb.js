@@ -16,7 +16,15 @@ MongoClient.connect(conString, function(err, db) {
         {'message.revision.new': 1},
         function(err, result){
             db.close();
-            if (err) return console.error('there was an error creating the index', err);
+            if (err) return console.error('there was an error creating an index on socketdata field "message.revision.new"', err);
             else console.log('Index created on socketdata field "message.revision.new"', result);
+        });
+
+    db.collection('wikiedits').ensureIndex(
+        {'revnew': 1},
+        function(err, result){
+            db.close();
+            if (err) return console.error('there was an error creating an index on wikiedits field "revnew"', err);
+            else console.log('Index created on wikiedits field "revnew"', result);
         });
 });
