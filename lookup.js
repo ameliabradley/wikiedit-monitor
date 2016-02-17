@@ -4,6 +4,7 @@ var url = require('url');
 var fs = require('fs');
 var path = require('path');
 var mongodb = require('mongodb');
+var jade = require('jade');
 
 var MongoClient = mongodb.MongoClient;
 
@@ -16,6 +17,8 @@ var dateFormat = require('dateformat');
 
 //Lets define a port we want to listen to
 const PORT=8081; 
+const JADE_TEMPLATE_DIR= __dirname + '/jade_templates';
+const JADE_INCLUDE_DIR= __dirname + '/jade_templates/includes';
 
 function formatDate (date) {
    return dateFormat(date, "yyyy-mm-dd h:MM:ss");
@@ -24,13 +27,27 @@ function formatDate (date) {
 //We need a function which handles requests and send res
 function handleRequest(request, res){
    var urlObject = url.parse(request.url, true);
-
-   res.writeHead(200, {'Content-Type': 'text/html'});
-   res.write("<link type='text/css' rel='stylesheet' href='http://localhost:" + PORT + "/css/all.css'>");
-      var wiki = "en";
+   var wiki = "en";
 
    function error (strError) {
-      res.end(strError);
+     if(strError && strError.toString) {
+       strError = strError.toString();
+     }
+     console.error(strError);
+     return renderContent(strError);
+   }
+
+   function renderContent (content) {
+     res.writeHead(200, {'Content-Type': 'text/html'});
+     jade.renderFile( JADE_TEMPLATE_DIR + '/container.jade', {
+         contents: content,
+         port: PORT
+       },
+       function(err, html){
+          if(err) console.log(err);
+          res.write(html);
+          res.end();
+        });
    }
 
   MongoClient.connect(conString, function(err, db) {
@@ -42,26 +59,15 @@ function handleRequest(request, res){
            db.close();
            if (err) return error("db error: " + err);
 
-           if (rows.length === 0) return res.end('None found! :(');
+           if (rows.length === 0) return renderContent('None found! :(');
 
-            var row = rows[0];
-
-            res.write("<h1><a href='/?title=" + row.title + "'>" + row.title + "</a></h1>");
-            res.write("<b>User:</b> <a href='http://" + wiki + ".wikipedia.org/wiki/User:" + row.username + "'>");
-            res.write(row.username);
-            res.write("</a><br>");
-
-            res.write("<b>Comment:</b> <i>");
-            res.write(row.comment);
-            res.write("</i><br>");
-
-            res.write("<table style='white-space: pre-wrap'>");
-            if (row.diff) {
-               res.write(row.diff);
-            } else {
-               res.write("<tr><td>Empty :(</td></tr>");
-            }
-            res.end("</table>");
+           jade.renderFile( JADE_INCLUDE_DIR + '/query_diff.jade', {
+               row: rows[0],
+               wiki: wiki
+           }, function(err, html){
+              if(err) return error(err);
+              renderContent(html);
+           });
          });
       } else if (urlObject.query.title) {
          var title = urlObject.query.title.replace(/_/g, " ");
@@ -69,37 +75,16 @@ function handleRequest(request, res){
            db.close();
            if (err) return error("db error: " + err);
 
-           if (rows.length === 0) return res.end('None found! :(');
+           if (rows.length === 0) return renderContent('None found! :(');
 
-            res.write("<h1>" + title);
-            res.write(" <a href='http://" + wiki + ".wikipedia.org/wiki/" + title + "'>");
-            res.write("(wikipedia)</a></h1>");
-
-            res.write("<table class='edits'><tr><th>diff id</th><th>User</th><th>Comment</th></tr>");
-            for (var i = 0; i < rows.length; i++) {
-               var row = rows[i];
-
-               res.write("<tr>");
-                  res.write("<td>");
-                     res.write("<a href='?diff=" + row.revnew + "'>");
-                     res.write(row.revnew.toString());
-                     res.write("</a>");
-                  res.write("</td>");
-
-                  res.write("<td class='user'>");
-                     res.write("<a href='http://" + wiki + ".wikipedia.org/wiki/User:" + row.username + "'>");
-                     res.write(row.username || "");
-                     res.write("</a>");
-                  res.write("</td>");
-
-                  res.write("<td class='comment'>");
-                     res.write("<i>");
-                     res.write(row.comment || "");
-                     res.write("</i>");
-                  res.write("</td>");
-               res.write("</tr>");
-            }
-            res.end("</table>");
+           jade.renderFile( JADE_INCLUDE_DIR + '/query_title.jade', {
+               title: title,
+               rows: rows,
+               wiki: wiki
+           }, function(err, html){
+              if(err) return error(err);
+              renderContent(html);
+           });
          });
       } else if (urlObject.query.errorlog) {
          db.collection('errorlog').find({}, { revnew: 1, type: 1 }).toArray(function( err, errorRows ) {
@@ -110,7 +95,7 @@ function handleRequest(request, res){
 
            if (errorRows.length === 0) {
              db.close();
-             return res.end('No errors found! :(');
+             return renderContent('No errors found! :(');
            }
 
            var revIdList = [];
@@ -122,68 +107,33 @@ function handleRequest(request, res){
             db.close();
             if (err) return error("db error: " + err);
 
-            if (rows.length === 0) return res.end('No edits matching errors found! :(');
+            if (rows.length === 0) return renderContent('No edits matching errors found! :(');
 
-            res.write("<h1>Error Log</h1>");
-            res.write("<table class='errorlog'><tr><th>diff</th><th>timestamp</th><th>type</th><th>Title</th><th>User</th><th>Comment</th></tr>");
+            var joinRows = [];
             for (var e = 0; e < errorRows.length; e++) {
               var errorRow = errorRows[e];
               for (var i = 0; i < rows.length; i++) {
                  var row = rows[i];
-                 if(parseInt(errorRow.revnew) !== row.revnew) continue;
-
-                 res.write("<tr>");
-                    res.write("<td>");
-                       if (row.revnew) {
-                          res.write("<a href='?diff=" + row.revnew + "'>");
-                          res.write("(logged)");
-                          res.write("</a>");
-
-                          res.write(" <a href='https://" + wiki + ".wikipedia.org/w/api.php?action=query&prop=revisions&format=json&rvdiffto=prev&revids=" + row.revnew + "'>");
-                          res.write("(wikipedia)");
-                          res.write("</a>");
-                       }
-                    res.write("</td>");
-
-                    res.write("<td>");
-                       res.write(formatDate(row.created));
-                    res.write("</td>");
-
-                    res.write("<td>");
-                       res.write(errorRow.type);
-                    res.write("</td>");
-
-                    res.write("<td class='title'>");
-                       if (row.title) {
-                          res.write("<a href='?title=" + row.title + "'>");
-                          res.write(row.title);
-                          res.write("</a>");
-                       }
-                    res.write("</td>");
-
-                    res.write("<td class='user'>");
-                       if (row.username) {
-                          res.write("<a href='http://" + wiki + ".wikipedia.org/wiki/User:" + row.username + "'>");
-                          res.write(row.username);
-                          res.write("</a>");
-                       }
-                    res.write("</td>");
-
-                    res.write("<td class='comment'>");
-                       if (row.comment) {
-                          res.write("<i>");
-                          res.write(row.comment);
-                          res.write("</i>");
-                       }
-                    res.write("</td>");
-                 res.write("</tr>");
+                 if(parseInt(errorRow.revnew) === row.revnew) {
+                    row.created = errorRow._id.getTimestamp()
+                    row.type = errorRow.type;
+                    joinRows.push(row);
+                 }
               }
             }
-            res.end("</table>");
+            jade.renderFile( JADE_INCLUDE_DIR + '/query_errorlog.jade', {
+                  title: title,
+                  rows: joinRows,
+                  wiki: wiki,
+                  formatDate: formatDate
+            }, function(err, html){
+              if(err) return error(err);
+              renderContent(html);
+            });
            });
          });
       } else {
-         error("not recognized command");
+         return error("not recognized command");
       }
    });
 }

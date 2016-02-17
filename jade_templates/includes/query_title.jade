@@ -1,0 +1,16 @@
+h1
+  a(href='http://'+wiki+'.wikipedia.org/wiki/'+title).
+    (wikipedia)
+table(class='edits')
+  tr
+    th  diff id
+    th  User
+    th  Comment
+  each row in rows
+    tr
+      td
+        a(href='?diff='+row.revnew)= row.revnew
+      td(class='user')
+        a(href='http://'+wiki+'.wikipedia.org/wiki/User:'+row.username)= row.username
+      td(class='comment')
+        i= row.comment

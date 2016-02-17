@@ -1,0 +1,14 @@
+h1
+  a(href='/?title='+row.title)= row.title
+b User:
+a(href='http://'+wiki+'.wikipedia.org/wiki/User:'+row.username)= row.username
+br
+b Comment:
+i= row.comment
+br
+table(style='white-space: pre-wrap')
+  if row.diff
+    != row.diff
+  else
+    tr
+      td Empty :(
