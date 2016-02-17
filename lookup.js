@@ -27,7 +27,7 @@ function formatDate (date) {
 //We need a function which handles requests and send res
 function handleRequest(request, res){
    var urlObject = url.parse(request.url, true);
-   var wiki = "en";
+   var wiki = urlObject.query.wiki || "en";
 
    function error (strError) {
      if(strError && strError.toString) {
@@ -103,7 +103,7 @@ function handleRequest(request, res){
              revIdList.push(parseInt(errorRows[z].revnew));
            }
 
-           db.collection('wikiedits').find({ revnew: { $in:  revIdList }, wiki: wiki }).toArray(function (err, rows) {
+           db.collection('socketdata').find({ 'message.revision.new': { $in:  revIdList }, 'message.wiki': wiki + 'wiki' }).toArray(function (err, rows) {
             db.close();
             if (err) return error("db error: " + err);
 
@@ -113,8 +113,8 @@ function handleRequest(request, res){
             for (var e = 0; e < errorRows.length; e++) {
               var errorRow = errorRows[e];
               for (var i = 0; i < rows.length; i++) {
-                 var row = rows[i];
-                 if(parseInt(errorRow.revnew) === row.revnew) {
+                 var row = rows[i].message;
+                 if(parseInt(errorRow.revnew) === row.revision['new']) {
                     row.created = errorRow._id.getTimestamp()
                     row.type = errorRow.type;
                     joinRows.push(row);
