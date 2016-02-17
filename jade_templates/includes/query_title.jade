@@ -9,7 +9,7 @@ table(class='edits')
   each row in rows
     tr
       td
-        a(href='?diff='+row.revnew)= row.revnew
+        a(href='?diff='+row.revnew+'&wiki='+wiki)= row.revnew
       td(class='user')
         a(href='http://'+wiki+'.wikipedia.org/wiki/User:'+row.username)= row.username
       td(class='comment')
