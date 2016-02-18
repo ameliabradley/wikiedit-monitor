@@ -4,7 +4,8 @@ var fs = require('fs'),
    sprintf = require("sprintf-js").sprintf,
    util = require('util'),
    io = require('socket.io-client')
-   mongodb = require('mongodb');
+   mongodb = require('mongodb'),
+   debounce = require('debounce');
 
 var MongoClient = mongodb.MongoClient;
 
@@ -238,17 +239,22 @@ function setupSocket () {
    // browser code can load a minified Socket.IO JavaScript library;
    // standalone code can install via 'npm install socket.io-client@0.9.1'.
    var socket = io.connect('stream.wikimedia.org/rc', { query: 'hidebots=1' });
-   var subscribed = false;
+   var shouldSubscribe = true;
+   
+   var subscribeToStream = debounce(function () {
+      if(shouldSubscribe) {
+        socket.emit('subscribe', 'en.wikipedia.org');
+        shouldSubscribe = false;
+      }
+   }, 1000);
 
    socket.on('connect', function () {
       console.log('***** CONNECTED to stream.wikimedia.org/rc');
-      if(subscribed === false) {
-        socket.emit('subscribe', 'en.wikipedia.org');
-        subscribed = true;
-      }
+      subscribeToStream();
    });
 
    socket.on('change', function (message) {
+      shouldSubscribe = false;
       /*
       { comment: 'refine category structure',
         wiki: 'enwiki',
@@ -300,6 +306,7 @@ function setupSocket () {
 
    socket.on('disconnect', function() {
      console.log('***** Socket Disconnected');
+     shouldSubscribe = true;
    });
 
    socket.on('connect_error', function(err){
