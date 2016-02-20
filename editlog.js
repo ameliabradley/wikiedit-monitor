@@ -15,10 +15,10 @@ var config = JSON.parse(fs.readFileSync(configPath));
 var conString = config.conString;
 
 // This app caches revs and queries the diffs in bulk
-var MAX_MS_BETWEEN_REQUESTS = 10000;
-var MIN_REVS_UNTIL_REQUEST = 20;
-var MAX_REQUEST_REVS = 50;
-var MAX_NOTCACHED_RETRIES = 50;
+const MAX_MS_BETWEEN_REQUESTS = 10000;
+const MIN_REVS_UNTIL_REQUEST = 20;
+const MAX_REQUEST_REVS = 50;
+const MAX_NOTCACHED_RETRIES = 50;
 
 // Caching / App state
 var oRevsToGetDiffs = [];
