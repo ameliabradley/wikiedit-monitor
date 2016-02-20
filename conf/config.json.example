@@ -1,4 +1,11 @@
 {
+  "//": "Limit data size w/ collections that rotate out old data",
+  "//": "See: https://docs.mongodb.org/manual/core/capped-collections/",
+  "cap_collections": true,
+
+  "//": "Max summed size of all capped collections in bytes - Default: 3GB",
+  "//": "Minimum allowed size: 4096 bytes per collection",
+  "cap_total_size": 3000000000,
   "conString": "mongodb://localhost:27017/wikimonitor",
   "max_reconnection_attempts": 13
 }
