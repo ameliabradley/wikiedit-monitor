@@ -133,7 +133,8 @@ function handleRequest(request, res){
            });
          });
       } else {
-         return error("not recognized command");
+         var allowedOpts = ['diff', 'title', 'errorlog'];
+         return error("not recognized command. please provide query parameter with values from the following options: [" + allowedOpts.join(', ') + "]." );
       }
    });
 }
