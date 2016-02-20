@@ -1,3 +1,4 @@
 {
-  "conString": "mongodb://localhost:27017/wikimonitor"
+  "conString": "mongodb://localhost:27017/wikimonitor",
+  "max_reconnection_attempts": 13
 }
