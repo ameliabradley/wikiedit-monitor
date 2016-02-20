@@ -23,6 +23,9 @@ Steps:
 
 After you have some data, you should be able to analyize errors:
 * Run `nodejs lookup.js`
-* Point a browser at the given URL
+* Point a browser at the given URL, adding a query parameter for desired function
+  * diff
+  * title
+  * errorlog
 
 **wikiedit-monitor** is very much a work in progress. It currently does very little other than logging data and detecting administrative revision deletes.
