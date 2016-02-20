@@ -15,10 +15,11 @@ var config = JSON.parse(fs.readFileSync(configPath));
 var conString = config.conString;
 
 // This app caches revs and queries the diffs in bulk
-var MAX_MS_BETWEEN_REQUESTS = 10000;
-var MIN_REVS_UNTIL_REQUEST = 20;
-var MAX_REQUEST_REVS = 50;
-var MAX_NOTCACHED_RETRIES = 50;
+const MAX_MS_BETWEEN_REQUESTS = 10000;
+const MIN_REVS_UNTIL_REQUEST = 20;
+const MAX_REQUEST_REVS = 50;
+const MAX_NOTCACHED_RETRIES = 50;
+const DEFAULT_MAX_RECONNECTION_ATTEMPTS = 13;
 
 // Caching / App state
 var oRevsToGetDiffs = [];
@@ -238,7 +239,10 @@ function setupSocket () {
    // Requires socket.io-client 0.9.x:
    // browser code can load a minified Socket.IO JavaScript library;
    // standalone code can install via 'npm install socket.io-client@0.9.1'.
-   var socket = io.connect('stream.wikimedia.org/rc', { query: 'hidebots=1' });
+   var socket = io.connect('stream.wikimedia.org/rc', {
+     query: 'hidebots=1',
+     'max reconnection attempts': config.max_reconnection_attempts || DEFAULT_MAX_RECONNECTION_ATTEMPTS
+   });
    var shouldSubscribe = true;
    
    var subscribeToStream = debounce(function () {
