@@ -235,6 +235,33 @@ function doBulkQuery () {
    });
 }
 
+function cullDeletedItems (strTitle) {
+   var aRevsToDelete = [];
+
+   console.log("Article deleted: " + strTitle);
+   for (var revid in oRevsToGetDiffs) {
+      if (!oRevsToGetDiffs.hasOwnProperty(revid)) continue;
+      var oRev = oRevsToGetDiffs[revid];
+
+      if (oRev.title === strTitle) {
+         logError(iRevId, "Revision could not be queried because article was deleted", oRev, "", false);
+         aRevsToDelete.push(revid);
+      }
+   }
+
+   for (var i = 0; i < aRevsToDelete.length; i++) {
+      var iRevId = aRevsToDelete[i];
+      delete oRevsToGetDiffs[iRevId];
+      delete oBadDiffs[iRevId];
+   }
+
+   iNumRevsToGetDiffs -= aRevsToDelete.length;
+
+   if (aRevsToDelete.length > 0) {
+      console.error("***** Not gonna query " + aRevsToDelete.length + " revision(s) because the article was deleted: " + strTitle);
+   }
+}
+
 function setupSocket () {
    // Requires socket.io-client 0.9.x:
    // browser code can load a minified Socket.IO JavaScript library;
@@ -278,6 +305,11 @@ function setupSocket () {
         revision: { new: 696823369, old: null } };
       */
       saveSocketUpdate({message: message})
+
+      if (message.log_action === "delete") {
+         cullDeletedItems(message.title);
+         return;
+      }
 
       //if (message.bot) return;
       var revision = message.revision;
