@@ -93,7 +93,6 @@ function createCollectionIndex(collection, index, callback) {
 }
 
 var dbChanges = [
-  /*
   function(callback) {
     var size = (config.cap_total_size * COLLECTION_SIZE_FACTOR_WIKIEDITS);
     var collection = 'wikiedits';
@@ -111,7 +110,6 @@ var dbChanges = [
     var collection = 'socketdata';
     createCappedCollection(collection, size, callback);
   },
-  */
 
   function(callback) {
     var collection = 'socketdata';
