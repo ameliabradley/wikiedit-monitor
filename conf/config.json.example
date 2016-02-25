@@ -1,7 +1,7 @@
 {
   "//": "Limit data size w/ collections that rotate out old data",
   "//": "See: https://docs.mongodb.org/manual/core/capped-collections/",
-  "cap_collections": true,
+  "cap_collections": false,
 
   "//": "Max summed size of all capped collections in bytes - Default: 3GB",
   "//": "Minimum allowed size: 4096 bytes per collection",
