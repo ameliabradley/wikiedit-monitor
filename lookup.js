@@ -87,6 +87,38 @@ function handleRequest(request, res){
            });
          });
       } else if (urlObject.query.errorlog) {
+         // TODO: Use aggregate function
+         /*
+         db.getCollection('errorlog').aggregate([
+         {
+             $match: {
+                 revnew: { $ne: null }
+             },
+         },
+         {
+             $lookup: {
+               from: "socketdata",
+               localField: "revnew",
+               foreignField: "message.revision.new",
+               as: "socketdata"
+             }
+         },
+         {
+             $lookup: {
+               from: "wikiedits",
+               localField: "revnew",
+               foreignField: "revnew",
+               as: "wikiedit"
+             }
+         },
+         {
+             $sort: {
+                 _id: -1,
+                 type: 1
+             }
+         }])
+         */
+   
          db.collection('errorlog').find({}, { revnew: 1, type: 1 }).toArray(function( err, errorRows ) {
            if (err) {
              db.close();
@@ -121,6 +153,7 @@ function handleRequest(request, res){
                  }
               }
             }
+
             jade.renderFile( JADE_INCLUDE_DIR + '/query_errorlog.jade', {
                   title: title,
                   rows: joinRows,
