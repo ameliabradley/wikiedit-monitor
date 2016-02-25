@@ -84,7 +84,7 @@ function attemptRetryForBadDiff(revid, data, strError, page, strUrl) {
       oBadDiffs[revid] = 1;
    }
 
-   // Three strikes and I'm not querying for this revision's diff anymore
+   // Strikes until I'm not querying for this revision's diff anymore
    if (oBadDiffs[revid] > MAX_NOTCACHED_RETRIES) {
       // Something's wrong with this revision! :(
       // NOTE: Usually happens with an admin's revdelete revision
