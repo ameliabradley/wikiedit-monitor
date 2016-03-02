@@ -118,8 +118,30 @@ function handleRequest(request, res){
              }
          }])
          */
-   
-         db.collection('errorlog').find({}, { revnew: 1, type: 1 }).toArray(function( err, errorRows ) {
+
+         db.collection('errorlog').aggregate([
+         {
+             $project: {
+                 document: "$$ROOT",
+                 revnew: {
+                     $ifNull: [ "$data.revnew", 0 ]
+                 }
+             }
+         },
+         {
+             $lookup: {
+               from: "socketdata",
+               localField: "revnew",
+               foreignField: "message.revision.new",
+               as: "socketdata"
+             }
+         },
+         {
+             $sort: {
+                 "document._id": -1,
+                 "document.type": 1
+             }
+         }]).toArray(function( err, errorRows ) {
            if (err) {
              db.close();
              return error("db error: " + err);
@@ -130,39 +152,55 @@ function handleRequest(request, res){
              return renderContent('No errors found! :(');
            }
 
-           var revIdList = [];
+           var revTitleList = [];
            for(var z = 0; z < errorRows.length; z++) {
-             revIdList.push(parseInt(errorRows[z].revnew));
+             revTitleList.push(errorRows[z].document.title);
            }
 
-           db.collection('socketdata').find({ 'message.revision.new': { $in:  revIdList }, 'message.wiki': wiki + 'wiki' }).toArray(function (err, rows) {
-            db.close();
-            if (err) return error("db error: " + err);
+           db.collection('wikiedits').aggregate(
+             [
+               { $match: { title: { $in:  revTitleList } } },
+               { $group: { _id: "$title", count: { $sum: 1 } } }
+             ]
+           ).toArray(function( err, countRows ) {
+             if (err) {
+               db.close();
+               return error("db error: " + err);
+             }
 
-            if (rows.length === 0) return renderContent('No edits matching errors found! :(');
+             db.close();
 
-            var joinRows = [];
-            for (var e = 0; e < errorRows.length; e++) {
-              var errorRow = errorRows[e];
-              for (var i = 0; i < rows.length; i++) {
-                 var row = rows[i].message;
-                 if(parseInt(errorRow.revnew) === row.revision['new']) {
-                    row.created = errorRow._id.getTimestamp()
-                    row.type = errorRow.type;
-                    joinRows.push(row);
-                 }
-              }
-            }
+             var oCountsByTitle = {};
+             for (var y = 0; y < countRows.length; y++) {
+               var countRow = countRows[y];
+               var title = countRow.title;
+               var count = countRow.count;
+               oCountsByTitle[title] = (count) ? count : 0;
+             }
 
-            jade.renderFile( JADE_INCLUDE_DIR + '/query_errorlog.jade', {
-                  title: title,
-                  rows: joinRows,
-                  wiki: wiki,
-                  formatDate: formatDate
-            }, function(err, html){
-              if(err) return error(err);
-              renderContent(html);
-            });
+             var joinRows = [];
+             for (var e = 0; e < errorRows.length; e++) {
+               var errorParent = errorRows[e];
+               var errorRow = errorParent.document;
+               var socketdata = errorParent.socketdata[0];
+               if (socketdata) {
+                 var message = socketdata.message;
+                 message.created = errorRow._id.getTimestamp()
+                 message.type = errorRow.type;
+                 message.count = oCountsByTitle[message.title] || 0;
+                 joinRows.push(message);
+               }
+             }
+
+             jade.renderFile( JADE_INCLUDE_DIR + '/query_errorlog.jade', {
+                   title: title,
+                   rows: joinRows,
+                   wiki: wiki,
+                   formatDate: formatDate
+             }, function(err, html){
+               if(err) return error(err);
+               renderContent(html);
+             });
            });
          });
       } else {
