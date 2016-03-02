@@ -5,10 +5,12 @@
 
 .title,
 .user {
+   /*
    overflow: hidden;
    text-overflow: ellipsis;
-   white-space: nowrap;
    max-width: 150px;
+   */
+   white-space: nowrap;
 }
 
 .comment {

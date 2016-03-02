@@ -13,14 +13,21 @@ table(class='errorlog')
       td
         if row.revision.new
           a(href='?diff='+row.revision.new+'&wiki='+wiki).
-            (logged)
+            logged
+          =' | '
           a(href='https://'+wiki+'.wikipedia.org/w/api.php?action=query&prop=revisions&format=json&rvdiffto=prev&revids=' + row.revision.new).
-            (wikipedia)
+            wikipedia
       td= formatDate(row.created)
       td= row.type
       td(class='title')
-        if row.title
-          a(href='?title='+row.title+'&wiki='+wiki)= row.title
+        span= row.title
+        br
+        if row.count != 0
+          a(href='?title='+row.title+'&wiki='+wiki)= row.count + ' logged page edits | '
+        else
+          span= '0 logged page edits | '
+
+        a(href='https://'+wiki+'.wikipedia.org/w/index.php?action=history&title='+row.title)= 'wikipedia edits'
       td(class='user')
         if row.user
           a(href='http://' + wiki + '.wikipedia.org/wiki/User:' + row.user)= row.user
