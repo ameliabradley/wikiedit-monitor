@@ -34,7 +34,7 @@ function logError (revnew, type, data, url, bConsole) {
     if (err) return console.error('error fetching client from pool', err);
 
     db.collection('errorlog').insertOne( {
-      revnew: revnew,
+      revnew: parseInt(revnew),
       type: type,
       data: data,
       url: url

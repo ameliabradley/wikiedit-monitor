@@ -87,6 +87,15 @@ function handleRequest(request, res){
            });
          });
       } else if (urlObject.query.errorlog) {
+       jade.renderFile( JADE_INCLUDE_DIR + '/query_errorlog.jade', {
+             title: title,
+             wiki: wiki,
+             formatDate: formatDate
+       }, function(err, html){
+         if(err) return error(err);
+         renderContent(html);
+       });
+      } else if (urlObject.query.errorlogquery) {
          // TODO: Use aggregate function
          /*
          db.getCollection('errorlog').aggregate([
@@ -119,12 +128,50 @@ function handleRequest(request, res){
          }])
          */
 
+         var start = (urlObject.query.start) ? parseInt(urlObject.query.start) : 0;
+         var length = (urlObject.query.length) ? parseInt(urlObject.query.length) : 10;
+
+
+         var oMatch = {};
+
+         var strType = urlObject.query["columns[0][search][value]"];
+         if (strType) { oMatch.type = new RegExp(strType, "i"); }
+
+         var strTitle = urlObject.query["columns[2][search][value]"];
+         if (strTitle) { oMatch["data.title"] = new RegExp(strTitle, "i"); }
+
+         var strUser = urlObject.query["columns[3][search][value]"];
+         if (strUser) { oMatch["data.revisions.user"] = new RegExp(strUser, "i"); }
+
+         var strComment = urlObject.query["columns[4][search][value]"];
+         if (strComment) { oMatch["data.revisions.comment"] = new RegExp(strComment, "i"); }
+
+         var strSearchValue = urlObject.query["search[value]"];
+         if (strSearchValue) {
+            var rxSearchbox = new RegExp(strSearchValue, "i");
+            oMatch["$or"] = [
+               { type: rxSearchbox },
+               { "data.title": rxSearchbox },
+               { "data.revisions.user": rxSearchbox },
+               { "data.revisions.comment": rxSearchbox }
+            ];
+         }
+
          db.collection('errorlog').aggregate([
+         {
+            $match: oMatch
+         },
+         {
+            $skip: start
+         },
+         {
+            $limit: length,
+         },
          {
              $project: {
                  document: "$$ROOT",
                  revnew: {
-                     $ifNull: [ "$data.revnew", 0 ]
+                     $ifNull: [ "$data.revnew", { $ifNull: [ "$revnew", 0 ] } ]
                  }
              }
          },
@@ -135,26 +182,19 @@ function handleRequest(request, res){
                foreignField: "message.revision.new",
                as: "socketdata"
              }
-         },
-         {
-             $sort: {
-                 "document._id": -1,
-                 "document.type": 1
-             }
          }]).toArray(function( err, errorRows ) {
            if (err) {
              db.close();
              return error("db error: " + err);
            }
 
-           if (errorRows.length === 0) {
-             db.close();
-             return renderContent('No errors found! :(');
-           }
-
            var revTitleList = [];
+           var socketdata;
            for(var z = 0; z < errorRows.length; z++) {
-             revTitleList.push(errorRows[z].document.title);
+             socketdata = errorRows[z].socketdata[0];
+             if (socketdata && socketdata.message) {
+                revTitleList.push(socketdata.message.title);
+             }
            }
 
            db.collection('wikiedits').aggregate(
@@ -168,12 +208,10 @@ function handleRequest(request, res){
                return error("db error: " + err);
              }
 
-             db.close();
-
              var oCountsByTitle = {};
              for (var y = 0; y < countRows.length; y++) {
                var countRow = countRows[y];
-               var title = countRow.title;
+               var title = countRow._id;
                var count = countRow.count;
                oCountsByTitle[title] = (count) ? count : 0;
              }
@@ -183,24 +221,69 @@ function handleRequest(request, res){
                var errorParent = errorRows[e];
                var errorRow = errorParent.document;
                var socketdata = errorParent.socketdata[0];
+
+               var message;
                if (socketdata) {
-                 var message = socketdata.message;
-                 message.created = errorRow._id.getTimestamp()
-                 message.type = errorRow.type;
-                 message.count = oCountsByTitle[message.title] || 0;
-                 joinRows.push(message);
+                 message = socketdata.message;
+               } else {
+                  // Missing socket data
+                  message = {
+                      "comment" : "",
+                      "wiki" : "",
+                      "server_name" : "",
+                      "title" : "Missing socket data for errorlog revnew "
+                        + errorRow.revnew,
+                      "timestamp" : 0,
+                      "server_script_path" : "/w",
+                      "namespace" : 0,
+                      "server_url" : "",
+                      "length" : {
+                          "new" : 0,
+                          "old" : 0
+                      },
+                      "user" : "",
+                      "bot" : false,
+                      "type" : "edit",
+                      "id" : 0,
+                      "minor" : true,
+                      "revision" : {
+                          "new" : 0,
+                          "old" : 0
+                      }
+                  };
                }
+
+               message.created = dateFormat(errorRow._id.getTimestamp());
+               message.type = errorRow.type;
+               message.wiki = wiki;
+               message.count = oCountsByTitle[message.title] || 0;
+               joinRows.push(message);
              }
 
-             jade.renderFile( JADE_INCLUDE_DIR + '/query_errorlog.jade', {
-                   title: title,
-                   rows: joinRows,
-                   wiki: wiki,
-                   formatDate: formatDate
-             }, function(err, html){
-               if(err) return error(err);
-               renderContent(html);
-             });
+             db.collection('errorlog').count(oMatch, function (err, iFilteredCount) {
+                if (err) {
+                   console.log(err);
+                }
+
+                db.collection('errorlog').count(function (err, iTotalCount) {
+                   db.close();
+
+                   if (err) {
+                      console.log(err);
+                      return;
+                   }
+
+                   res.setHeader('Content-Type', 'application/json');
+                   res.send(JSON.stringify({
+                     wiki: wiki,
+                     start: start,
+                     length: length,
+                     recordsFiltered: iFilteredCount,
+                     recordsTotal: iTotalCount,
+                     data: joinRows
+                   }));
+                });
+              });
            });
          });
       } else {
