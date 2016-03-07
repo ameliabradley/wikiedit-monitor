@@ -3,6 +3,10 @@
    font-weight: bold;
 }
 
+.nobreak {
+   white-space: nowrap;
+}
+
 .title,
 .user {
    /*

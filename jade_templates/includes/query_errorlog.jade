@@ -1,36 +1,20 @@
 h1 Error Log
-table(class='errorlog')
-  tr
-    th  diff
-    th  timestamp
-    th  type
-    th  Title
-    th  User
-    th  Comment
-
-  each row in rows
+table(id='errorlog')
+  thead
     tr
-      td
-        if row.revision.new
-          a(href='?diff='+row.revision.new+'&wiki='+wiki).
-            logged
-          =' | '
-          a(href='https://'+wiki+'.wikipedia.org/w/api.php?action=query&prop=revisions&format=json&rvdiffto=prev&revids=' + row.revision.new).
-            wikipedia
-      td= formatDate(row.created)
-      td= row.type
-      td(class='title')
-        span= row.title
-        br
-        if row.count != 0
-          a(href='?title='+row.title+'&wiki='+wiki)= row.count + ' logged page edits | '
-        else
-          span= '0 logged page edits | '
+      th  type
+      th  timestamp
+      th  Title
+      th  User
+      th  Comment
 
-        a(href='https://'+wiki+'.wikipedia.org/w/index.php?action=history&title='+row.title)= 'wikipedia edits'
-      td(class='user')
-        if row.user
-          a(href='http://' + wiki + '.wikipedia.org/wiki/User:' + row.user)= row.user
-      td(class='comment')
-        if row.comment
-          i= row.comment
+  tfoot
+    tr
+      th(class='typeFooter')  type
+      th(class='timestampFooter')  timestamp
+      th(class='titleFooter')  Title
+      th(class='userFooter')  User
+      th(class='commentFooter')  Comment
+
+script
+   include errorlog.js

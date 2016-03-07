@@ -2,5 +2,8 @@ doctype html
 html(lang="en")
   head
     title= "Wiki Edit Monitor Query Interface"
-    link(type='text/css',rel='stylesheet',href='http://localhost:'+ port + '/css/all.css')
+    link(type='text/css',rel='stylesheet',href='/css/all.css')
+    link(type='text/css',rel='stylesheet',href='//cdn.datatables.net/1.10.11/css/jquery.dataTables.min.css')
+    script(src='//code.jquery.com/jquery-1.12.0.min.js')
+    script(src='//cdn.datatables.net/1.10.11/js/jquery.dataTables.min.js')
   body!= contents
