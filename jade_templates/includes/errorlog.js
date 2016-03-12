@@ -50,10 +50,10 @@ $(document).ready(function() {
                   if (row.count === 0) {
                      aReturn = aReturn.concat(['0 logged page edits | ']);
                   } else {
-                     aReturn = aReturn.concat(['<a href="?title=', row.title, '&wiki=', row.wiki, '">', row.count, ' logged page edit(s)</a> | ']);
+                     aReturn = aReturn.concat(['<a href="?title=', encodeURIComponent(row.title), '&wiki=', row.wiki, '">', row.count, ' logged page edit(s)</a> | ']);
                   }
 
-                  aReturn = aReturn.concat(['<a href="https://', row.wiki, '.wikipedia.org/w/index.php?action=history&title=', row.title, '">wikipedia edits</a></span>']);
+                  aReturn = aReturn.concat(['<a href="https://', row.wiki, '.wikipedia.org/w/index.php?action=history&title=', encodeURIComponent(row.title), '">wikipedia edits</a></span>']);
 
                   return aReturn.join("");
                },
