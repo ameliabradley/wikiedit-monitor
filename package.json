@@ -13,5 +13,9 @@
     "socket.io": "0.9.x",
     "sprintf": "^0.1.5",
     "sprintf-js": "^1.0.3"
+  },
+  "scripts": {
+    "start": "node editlog.js",
+    "postinstall": "./node_modules/bower/bin/bower install"
   }
 }
