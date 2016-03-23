@@ -4,6 +4,7 @@
   "private": true,
   "dependencies": {
     "async": "^1.5.2",
+    "auto-loader": "^0.2.0",
     "dateformat": "^1.0.12",
     "debounce": "^1.0.0",
     "express": "2.5.x",
