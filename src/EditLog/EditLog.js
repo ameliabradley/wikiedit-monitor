@@ -31,7 +31,7 @@ module.exports.start = function start(config){
       });
   }
 
-  function attemptRetryForBadDiff(revid, data, strError, page, strUrl) {
+  function attemptRetryForBadDiff(revid, strError, page, strUrl) {
      revisionList.releaseRevision(revid);
 
      // Strikes until I'm not querying for this revision's diff anymore
@@ -101,7 +101,7 @@ module.exports.start = function start(config){
                           // This is a probably a bug where the diffs haven't been cached yet
                           // Can solve either by waiting or requesting individually
                           // SEE: https://phabricator.wikimedia.org/T31223
-                          attemptRetryForBadDiff(revid, revisionList.getRevisionData(revid), "Wikipedia returned empty diff", page, strUrl);
+                          attemptRetryForBadDiff(revid, "Wikipedia returned empty diff", page, strUrl);
                        } else if (revid) {
                           logError(revid, "Probably revdelete", page, strUrl);
                           revisionList.purgeRevision(revid);
@@ -126,7 +126,7 @@ module.exports.start = function start(config){
                         ) {
                        // If a revid is included in parsed.query.badrevids, it may be
                        // available in a later query result.
-                       attemptRetryForBadDiff(revnew, oRev, "Wikipedia placed the revision in badrevids", {}, strUrl);
+                       attemptRetryForBadDiff(revnew, "Wikipedia placed the revision in badrevids", {}, strUrl);
                     } else {
                        logError(revnew, "Wikipedia failed to return anything", body, strUrl);
                        revisionList.purgeRevision(revnew);
