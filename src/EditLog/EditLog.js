@@ -1,7 +1,7 @@
 var sprintf = require("sprintf-js").sprintf,
    SocketManager = require('./SocketManager.js')
    PersistenceQueues = require('./PersistenceQueues.js')
-   RevisionList = require('./RevisionList.js').RevisionList
+   RevisionList = require('./RevisionList.js')
    WikiApi = require('./WikiApi.js');
 
 module.exports = {};
