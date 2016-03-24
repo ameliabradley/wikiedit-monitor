@@ -9,6 +9,8 @@ var fs = require('fs'),
 const COLLECTION_SIZE_FACTOR_WIKIEDITS = .9;
 const COLLECTION_SIZE_FACTOR_ERRORLOG = .0002;
 const COLLECTION_SIZE_FACTOR_SOCKETDATA = .0998;
+const DASHBOARD_COLLECTION_SIZE = 100000;
+const DASHBOARD_COLLECTION_MAX = 100;
 
 const ERROR_MESSAGE_INDEX = 'There was an error creating the index %s on the collection "%s".';
 const SUCCESS_MESSAGE_INDEX = 'Successfully created the index %s on the collection "%s".';
@@ -41,26 +43,33 @@ function withMongoConnection(callback) {
   }
 }
 
+function initializeCappedCollectionInMongo(collection, size, callback, max) {
+    withMongoConnection(function(err, db){
+      if(err) return callback(err, null);
+      var options = {
+          capped:true,
+          size: size
+        };
+
+      if(max) options.max = max;
+
+      db.createCollection(collection, options, function(err, result){
+          if(err) {
+            console.error(sprintf(ERROR_MESSAGE_CAPPED, collection, size), err);
+          } else {
+            console.log(sprintf(SUCCESS_MESSAGE_CAPPED, collection, size));
+          }
+
+          callback(err, { err:err, result:result });
+          db.close();
+        });
+    });
+}
+
 function createCappedCollection(collection, size, callback) {
   if(config.cap_collections) {
     if(config.cap_total_size) {
-      withMongoConnection(function(err, db){
-        if(err) return callback(err, null);
-        db.createCollection(collection, {
-            capped:true,
-            size: size
-          }, function(err, result){
-
-            if(err) {
-              console.error(sprintf(ERROR_MESSAGE_CAPPED, collection, size), err);
-            } else {
-              console.log(sprintf(SUCCESS_MESSAGE_CAPPED, collection, size));
-            }
-
-            callback(err, { err:err, result:result });
-            db.close();
-          });
-      });
+      initializeCappedCollectionInMongo(collection, size, callback);
     } else {
       var errorMessage = sprintf(ERROR_MISSING_CONFIG, 'cap_total_size', 'create capped collections');
       console.log(errorMessage);
@@ -93,6 +102,21 @@ function createCollectionIndex(collection, index, callback) {
 }
 
 var dbChanges = [
+  function(callback) {
+    var collection = 'wikiedits_dashboard';
+    initializeCappedCollectionInMongo(collection, DASHBOARD_COLLECTION_SIZE, callback, DASHBOARD_COLLECTION_MAX);
+  },
+
+  function(callback) {
+    var collection = 'errorlog_dashboard';
+    initializeCappedCollectionInMongo(collection, DASHBOARD_COLLECTION_SIZE, callback, DASHBOARD_COLLECTION_MAX);
+  },
+
+  function(callback) {
+    var collection = 'socketdata_dashboard';
+    initializeCappedCollectionInMongo(collection, DASHBOARD_COLLECTION_SIZE, callback, DASHBOARD_COLLECTION_MAX);
+  },
+
   function(callback) {
     var size = (config.cap_total_size * COLLECTION_SIZE_FACTOR_WIKIEDITS);
     var collection = 'wikiedits';
