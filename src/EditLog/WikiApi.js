@@ -11,10 +11,14 @@ class WikiApi {
     options = options || {}
     apis.set(this, {
       host: options.host || WIKI_API_HOST,
+      newRequestAllowed: true,
       pathFunction: options.pathFunction || function(revIds) {
         return WIKI_API_PATH_PREFIX + revIds.join("|");
       }
     });
+  }
+  isNewRequestAllowed() {
+    return apis.get(this).newRequestAllowed;
   }
   getRevisions(revIds, successCallback, errorCallback) {
      var options = apis.get(this);
@@ -28,6 +32,7 @@ class WikiApi {
 
      console.log('***** Requesting ' + revIds.length + ' diffs from Wikipedia');
 
+     options.newRequestAllowed = false;
      var iBeforeQuery = (new Date()).getTime();
      http.get(httpOpts, function (response) {
         var iAfterQuery = (new Date()).getTime();
@@ -41,6 +46,7 @@ class WikiApi {
         });
 
         response.on('end', function () {
+           options.newRequestAllowed = true;
            try {
               var parsed = JSON.parse(body);
            } catch (e) {
@@ -55,6 +61,7 @@ class WikiApi {
         });
 
         response.on("error", function (err) {
+            options.newRequestAllowed = true;
             errorCallback('http error', (body || ""), strUrl);
         });
      });
