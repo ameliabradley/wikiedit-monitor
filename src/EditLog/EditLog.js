@@ -1,10 +1,8 @@
-var http = require('https'),
-   sprintf = require("sprintf-js").sprintf,
-   util = require('util'),
-   io = require('socket.io-client'),
+var sprintf = require("sprintf-js").sprintf,
    SocketManager = require('./SocketManager.js')
    PersistenceQueues = require('./PersistenceQueues.js')
-   RevisionList = require('./RevisionList.js').RevisionList;
+   RevisionList = require('./RevisionList.js')
+   WikiApi = require('./WikiApi.js');
 
 module.exports = {};
 module.exports.start = function start(config){
@@ -12,15 +10,14 @@ module.exports.start = function start(config){
 
 
   // This app caches revs and queries the diffs in bulk
-  const MAX_MS_BETWEEN_REQUESTS = 10000;
-  const MIN_REVS_UNTIL_REQUEST = 20;
+  const WIKI_API_QUERY_INTERVAL = 5000;
   const MAX_REQUEST_REVS = 50;
   const MAX_NOTCACHED_RETRIES = 50;
 
   // Caching / App state
-  var iLastRequest = null;
   var revisionList = new RevisionList();
   var queues = PersistenceQueues.queues;
+  var wikiApi = new WikiApi();
 
   function logError (revnew, type, data, url, bConsole) {
     queues.errorlog.push({
@@ -50,113 +47,76 @@ module.exports.start = function start(config){
      }
   }
 
+
   function doBulkQuery () {
-     iLastRequest = (new Date()).getTime();
-
      var aRevIds = revisionList.reserveRevisions(MAX_REQUEST_REVS);
-
-     var path = "/w/api.php?action=query&prop=revisions&format=json&rvdiffto=prev&revids=" + aRevIds.join("|");
-
-     var opts = {
-        host: 'en.wikipedia.org',
-        path: path
-     };
-
-     var strUrl = opts.host + path;
-
-     console.log('***** Requesting ' + aRevIds.length + ' diffs from Wikipedia');
-
-     var iBeforeQuery = (new Date()).getTime();
-     http.get(opts, function (response) {
-        var iAfterQuery = (new Date()).getTime();
-        var iTotalMs = Math.round((iAfterQuery - iBeforeQuery) / 10) / 100;
-        console.log('***** Wikipedia returned in ' + iTotalMs + 's');
-
-        var body = '';
-
-        response.on('data', function (chunk) {
-           body += chunk;
-        });
-
-        response.on('end', function () {
-           try {
-              var parsed = JSON.parse(body);
-           } catch (e) {
-              // App will log an error when it realizes parsed is empty
-           }
-
-           var page;
-
-           if (parsed && parsed.query && parsed.query.pages) {
-              var oQueryByRev = {};
-              Object.keys(parsed.query.pages).forEach(function (pagenum) {
-                 page = parsed.query.pages[pagenum];
-                 if (page && page.revisions) {
-                    page.revisions.forEach(function (revision) {
-                       var revid = revision.revid;
-                       if (revision.diff && revision.diff['*']) {
-                          var diff = revision.diff['*'];
-                          oQueryByRev[revid] = { diff: diff };
-                       } else if ('diff' in revision && 'notcached' in revision.diff) {
-                          // This is a probably a bug where the diffs haven't been cached yet
-                          // Can solve either by waiting or requesting individually
-                          // SEE: https://phabricator.wikimedia.org/T31223
-                          attemptRetryForBadDiff(revid, "Wikipedia returned empty diff", page, strUrl);
-                       } else if (revid) {
-                          logError(revid, "Probably revdelete", page, strUrl);
-                          revisionList.purgeRevision(revid);
-                       } else {
-                          logError(revision.revid, "bad diff", page, strUrl);
-                          revisionList.purgeRevision(revid);
-                       }
-                    });
+     wikiApi.getRevisions(
+         aRevIds,
+         function(parsed, strUrl){
+           var page, oQueryByRev = {};
+           Object.keys(parsed.query.pages).forEach(function (pagenum) {
+             page = parsed.query.pages[pagenum];
+             if (page && page.revisions) {
+               page.revisions.forEach(function (revision) {
+                 var revid = revision.revid;
+                 if (revision.diff && revision.diff['*']) {
+                   var diff = revision.diff['*'];
+                   oQueryByRev[revid] = { diff: diff };
+                 } else if ('diff' in revision && 'notcached' in revision.diff) {
+                   // This is a probably a bug where the diffs haven't been cached yet
+                   // Can solve either by waiting or requesting individually
+                   // SEE: https://phabricator.wikimedia.org/T31223
+                   attemptRetryForBadDiff(revid, "Wikipedia returned empty diff", page, strUrl);
+                 } else if (revid) {
+                   logError(revid, "Probably revdelete", page, strUrl);
+                   revisionList.purgeRevision(revid);
                  } else {
-                    logError(null, "bad revision", page, strUrl);
+                   logError(revision.revid, "bad diff", page, strUrl);
+                   revisionList.purgeRevision(revid);
                  }
-              });
+               });
+             } else {
+               logError(null, "bad revision", page, strUrl);
+             }
+           });
 
-              revisionList.reservedRevisions.forEach(function (revnew) {
-                 var oRev = revisionList.getRevisionData(revnew);
-                 if (!oQueryByRev[revnew]) {
-                    if(
-                        parsed
-                        && 'query' in parsed
-                        && 'badrevids' in parsed.query
-                        && revnew in parsed.query.badrevids
-                        ) {
-                       // If a revid is included in parsed.query.badrevids, it may be
-                       // available in a later query result.
-                       attemptRetryForBadDiff(revnew, "Wikipedia placed the revision in badrevids", {}, strUrl);
-                    } else {
-                       logError(revnew, "Wikipedia failed to return anything", body, strUrl);
-                       revisionList.purgeRevision(revnew);
-                    }
-                    return;
-                 }
-
-                 var oQuery = oQueryByRev[revnew];
-                 queues.wikiedits.push({
-                    revnew: parseInt(revnew),
-                    revold: parseInt(oRev.revold),
-                    title: oRev.title,
-                    comment: oRev.comment,
-                    wiki: oRev.wiki,
-                    username: oRev.username,
-                    diff: oQuery.diff
-                 });
+           revisionList.reservedRevisions.forEach(function (revnew) {
+             var oRev = revisionList.getRevisionData(revnew);
+             if (!oQueryByRev[revnew]) {
+               if(
+                   parsed
+                   && 'query' in parsed
+                   && 'badrevids' in parsed.query
+                   && revnew in parsed.query.badrevids
+                 ) {
+                 // If a revid is included in parsed.query.badrevids, it may be
+                 // available in a later query result.
+                 attemptRetryForBadDiff(revnew, "Wikipedia placed the revision in badrevids", {}, strUrl);
+               } else {
+                 logError(revnew, "Wikipedia failed to return anything", parsed, strUrl);
                  revisionList.purgeRevision(revnew);
-              });
-           } else {
-              logError(null, "bad pages json value", body, strUrl);
-              revisionList.releaseRevisions(aRevIds);
-           }
-        });
+               }
+               return;
+             }
 
-        response.on("error", function (err) {
-           logError(null, "http error", (body || "") + err, strUrl);
-           revisionList.releaseRevisions(aRevIds);
-        });
-     });
+             var oQuery = oQueryByRev[revnew];
+             queues.wikiedits.push({
+               revnew: parseInt(revnew),
+               revold: parseInt(oRev.revold),
+               title: oRev.title,
+               comment: oRev.comment,
+               wiki: oRev.wiki,
+               username: oRev.username,
+               diff: oQuery.diff
+             });
+             revisionList.purgeRevision(revnew);
+           });
+         },
+         function (message, content, strUrl) {
+            logError(null, message, content, strUrl);
+            revisionList.releaseRevisions(aRevIds);
+         }
+     );
   }
 
   function cullDeletedItems (strTitle) {
@@ -224,13 +184,6 @@ module.exports.start = function start(config){
                 wiki: wiki,
                 username: message.user
              });
-
-             if (revisionList.count >= MIN_REVS_UNTIL_REQUEST) {
-                var iBeforeQuery = (new Date()).getTime();
-                if ((!iLastRequest) || (iBeforeQuery > (iLastRequest + MAX_MS_BETWEEN_REQUESTS))) {
-                   doBulkQuery();
-                }
-             }
           }
       },
       function(message, err){
@@ -238,4 +191,9 @@ module.exports.start = function start(config){
       }
   );
   PersistenceQueues.startMonitoring(config);
+  setInterval(function(){
+    if(revisionList.count > 0 && wikiApi.isNewRequestAllowed()) {
+      doBulkQuery();
+    }
+  }, WIKI_API_QUERY_INTERVAL);
 };

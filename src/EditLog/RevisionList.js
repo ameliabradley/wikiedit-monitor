@@ -71,6 +71,4 @@ class RevisionList {
   }
 }
 
-module.exports = {
-  RevisionList: RevisionList
-};
+module.exports = RevisionList;
