@@ -10,13 +10,11 @@ module.exports.start = function start(config){
 
 
   // This app caches revs and queries the diffs in bulk
-  const MAX_MS_BETWEEN_REQUESTS = 10000;
-  const MIN_REVS_UNTIL_REQUEST = 20;
+  const WIKI_API_QUERY_INTERVAL = 5000;
   const MAX_REQUEST_REVS = 50;
   const MAX_NOTCACHED_RETRIES = 50;
 
   // Caching / App state
-  var iLastRequest = null;
   var revisionList = new RevisionList();
   var queues = PersistenceQueues.queues;
   var wikiApi = new WikiApi();
@@ -51,8 +49,6 @@ module.exports.start = function start(config){
 
 
   function doBulkQuery () {
-     iLastRequest = (new Date()).getTime();
-
      var aRevIds = revisionList.reserveRevisions(MAX_REQUEST_REVS);
      wikiApi.getRevisions(
          aRevIds,
@@ -188,13 +184,6 @@ module.exports.start = function start(config){
                 wiki: wiki,
                 username: message.user
              });
-
-             if (revisionList.count >= MIN_REVS_UNTIL_REQUEST) {
-                var iBeforeQuery = (new Date()).getTime();
-                if ((!iLastRequest) || (iBeforeQuery > (iLastRequest + MAX_MS_BETWEEN_REQUESTS))) {
-                   doBulkQuery();
-                }
-             }
           }
       },
       function(message, err){
@@ -202,4 +191,9 @@ module.exports.start = function start(config){
       }
   );
   PersistenceQueues.startMonitoring(config);
+  setInterval(function(){
+    if(revisionList.count > 0 && wikiApi.isNewRequestAllowed()) {
+      doBulkQuery();
+    }
+  }, WIKI_API_QUERY_INTERVAL);
 };
