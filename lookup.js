@@ -287,8 +287,29 @@ function handleRequest(request, res){
            });
          });
       } else {
-         var allowedOpts = ['diff', 'title', 'errorlog'];
-         return error("not recognized command. please provide query parameter with values from the following options: [" + allowedOpts.join(', ') + "]." );
+        // TODO implement tailable cursor w/ websockets
+        // var filter = {};
+        // set MongoDB cursor options
+        // var cursorOptions = {
+        //   tailable: true,
+        //   awaitdata: true,
+        //   numberOfRetries: -1
+        // };
+
+        // // create stream and listen
+        // var stream = coll.find(filter, cursorOptions).sort({$natural: -1}).stream();
+
+        // // call the callback
+        // stream.on('data', function(document) {
+        //   console.log(document);
+        // });
+         jade.renderFile( JADE_INCLUDE_DIR + '/dashboard.jade', {
+         }, function(err, html){
+           if(err) return error(err);
+           renderContent(html);
+         });
+         // var allowedOpts = ['diff', 'title', 'errorlog'];
+         // return error("not recognized command. please provide query parameter with values from the following options: [" + allowedOpts.join(', ') + "]." );
       }
    });
 }
