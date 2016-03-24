@@ -21,9 +21,9 @@ function persistChanges(){
     // Used to close connection only after all queries are complete
     var closeCounter = 0;
 
-    var errorRecords = queues.errorlog;
-    var socketRecords = queues.socketdata;
-    var wikieditRecords = queues.wikiedits;
+    var errorRecords = queues.errorlog.slice();
+    var socketRecords = queues.socketdata.slice();
+    var wikieditRecords = queues.wikiedits.slice();
 
     function onClose(){
         closeCounter++;
