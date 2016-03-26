@@ -19,15 +19,18 @@ class RevisionList {
     return revLists.get(this).reservedRevisions;
   }
   addRevision(revId, data) {
+    revId = parseInt(revId);
     var od = revLists.get(this);
     od.revisions.push(revId);
     od.dataByRevId[revId] = data;
   }
   getRevisionData(revId) {
+    revId = parseInt(revId);
     var od = revLists.get(this);
     return od.dataByRevId[revId];
   }
   getReleaseCount(revId) {
+    revId = parseInt(revId);
     var od = revLists.get(this);
     return od.releaseCountByRevId[revId];
   }
@@ -42,10 +45,11 @@ class RevisionList {
     }
   }
   releaseRevision(revId) {
+    revId = parseInt(revId);
     var od = revLists.get(this);
     var reservedIndex = od.reservedRevisions.indexOf(revId);
     if(reservedIndex !== -1) {
-      delete od.reservedRevisions[reservedIndex];
+      od.reservedRevisions.splice(reservedIndex, 1);
       od.revisions.push(revId);
       if(revId in od.releaseCountByRevId) {
         od.releaseCountByRevId[revId]++;
@@ -55,18 +59,19 @@ class RevisionList {
     }
   }
   purgeRevision(revId) {
+    revId = parseInt(revId);
     var od = revLists.get(this);
     delete od.dataByRevId[revId];
     delete od.releaseCountByRevId[revId];
 
     var reservedIndex = od.reservedRevisions.indexOf(revId);
     if(reservedIndex !== -1) {
-      delete od.reservedRevisions[reservedIndex];
+      od.reservedRevisions.splice(reservedIndex, 1);
     }
 
     var revIndex = od.revisions.indexOf(revId);
     if(revIndex !== -1) {
-      delete od.revisions[revIndex];
+      od.revisions.splice(reservedIndex, 1);
     }
   }
 }
