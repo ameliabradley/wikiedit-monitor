@@ -84,6 +84,7 @@ module.exports = {
   startMonitoring: function(config){
     conString = config.conString;
     setTimeout(persistChanges, PERSISTENCE_INTERVAL);
-  }
+  },
+  persistChanges: persistChanges
 };
 

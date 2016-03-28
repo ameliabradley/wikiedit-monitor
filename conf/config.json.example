@@ -7,5 +7,9 @@
   "//": "Minimum allowed size: 4096 bytes per collection",
   "cap_total_size": 3000000000,
   "conString": "mongodb://localhost:27017/wikimonitor",
+
+  // For unit testing (WILL BE DROPPED AND RECREATED)
+  "testConString": ""mongodb://localhost:27017/wikimonitor-test",
+
   "max_reconnection_attempts": 13
 }

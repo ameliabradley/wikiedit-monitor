@@ -8,4 +8,5 @@ var modules = loader.load(__dirname + '/src');
 var configPath = path.join(__dirname, "config.json");
 var config = JSON.parse(fs.readFileSync(configPath));
 
-modules.EditLog.EditLog.start(config);
+var editLog = new modules.EditLog.EditLog(config);
+editLog.start();

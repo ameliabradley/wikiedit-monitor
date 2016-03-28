@@ -2,9 +2,13 @@
   "name": "wikistream",
   "version": "0.0.1",
   "private": true,
+  "scripts": {
+    "test": "node test/sample-data-test.js"
+  },
   "dependencies": {
     "async": "^1.5.2",
     "auto-loader": "^0.2.0",
+    "cheerio": "^0.20.0",
     "dateformat": "^1.0.12",
     "debounce": "^1.0.0",
     "express": "2.5.x",
@@ -13,6 +17,7 @@
     "mongodb": "^2.1.7",
     "socket.io": "0.9.x",
     "sprintf": "^0.1.5",
-    "sprintf-js": "^1.0.3"
+    "sprintf-js": "^1.0.3",
+    "vows": "^0.8.1"
   }
 }
