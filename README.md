@@ -1,5 +1,7 @@
 # wikiedit-monitor
 
+[![Build Status](https://travis-ci.org/leebradley/wikiedit-monitor.svg?branch=master)](https://travis-ci.org/leebradley/wikiedit-monitor)
+
 **wikiedit-monitor** logs Wikipedia activity live to a database and performs analysis on that data.
 
 Project goals:
