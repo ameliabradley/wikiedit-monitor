@@ -51,7 +51,7 @@ vows.describe('socket-data-example').addBatch({
       assert.equal(result, "succeeded");
     }
   },
-  'When querying for some sample data': {
+  'When WikiApi queries for some sample data': {
     topic: function () {
       var self = this;
 
@@ -86,11 +86,13 @@ vows.describe('socket-data-example').addBatch({
         server.close();
       });
     },
-    'database should be populated correctly': function (err, provs, bounds) {
+    'query should parse and return without error': function (err, provs, bounds) {
+      // TODO: Verify that data was parsed *correctly*
       assert.ok(err.done);
     }
   }
 
+  // TODO: Fake socket connection with sample data
   // TODO: Attempt to connect to a mongodb, insert data, make sure data is valid, etc
 
   /*
