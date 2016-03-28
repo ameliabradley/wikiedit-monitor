@@ -3,8 +3,8 @@ var assert = require('assert'),
     express = require('express'),
     loader = require('auto-loader'),
     fs = require('fs'),
-    path = require('path'),
-    MongoClient = require('mongodb').MongoClient;
+    path = require('path');
+    //MongoClient = require('mongodb').MongoClient;
 
 var modules = loader.load(__dirname + '/../src');
 
