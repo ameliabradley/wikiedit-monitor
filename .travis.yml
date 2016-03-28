@@ -3,7 +3,8 @@ language: node_js
 node_js:
   - 5.3
 
-script: ./scripts/setup.sh
+before_script:
+  - "cp conf/config.json.example config.json"
 
 #services:
 #  - mongodb
