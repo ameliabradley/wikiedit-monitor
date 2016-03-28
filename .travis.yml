@@ -12,8 +12,6 @@ before_script:
   - sleep 15
   - mongo mydb_test --eval 'db.addUser("travis", "test");'
 
-# configure notifications (email, IRC, campfire etc)
-# please update this section to your needs!
 notifications:
   email:
     - "elephanthunter@gmail.com" # Lee
