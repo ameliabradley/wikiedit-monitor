@@ -1,5 +1,7 @@
 # wikiedit-monitor
 
+[![Build Status](https://travis-ci.org/leebradley/wikiedit-monitor.svg?branch=master)](https://travis-ci.org/leebradley/wikiedit-monitor)
+
 **wikiedit-monitor** logs Wikipedia activity live to a database and performs analysis on that data.
 
 Project goals:
@@ -26,6 +28,9 @@ After you have some data, you should be able to analyize errors:
 * Point a browser at the given URL, adding a query parameter for desired function
   * diff
   * title
-  * errorlog
+  * errorlog (ex: http://localhost:8081/?errorlog)
 
 **wikiedit-monitor** is very much a work in progress. It currently does very little other than logging data and detecting administrative revision deletes.
+
+## Contributing
+Make sure your changes succeed the unit tests by running `npm test` from the base directory.

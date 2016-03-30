@@ -1,0 +1,18 @@
+language: node_js
+
+node_js:
+  - 5.3
+
+services:
+  - mongodb
+
+# See: https://docs.travis-ci.com/user/database-setup/#MongoDB-does-not-immediately-accept-connections
+before_script:
+  - "cp conf/config.json.example config.json"
+  - sleep 15
+  - mongo mydb_test --eval 'db.addUser("travis", "test");'
+
+notifications:
+  email:
+    - "elephanthunter@gmail.com" # Lee
+    - "fennasnogothrim@gmail.com" # Tim

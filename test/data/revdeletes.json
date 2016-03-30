@@ -1,0 +1,78 @@
+{
+  "batchcomplete": "",
+    "query": {
+      "pages": {
+        "7548776": {
+          "pageid": 7548776,
+          "ns": 1,
+          "title": "Talk:List of breweries in California",
+          "revisions": [
+          {
+            "revid": 708163001,
+            "parentid": 708161545,
+            "user": "David Eppstein",
+            "timestamp": "2016-03-04T00:42:14Z",
+            "comment": "/* Red-linked breweries */ 2c",
+            "texthidden": ""
+          }
+          ]
+        },
+        "12057519": {
+          "pageid": 12057519,
+          "ns": 0,
+          "title": "Internet of Things",
+          "revisions": [
+          {
+            "revid": 708853577,
+            "parentid": 708851514,
+            "user": "129.137.215.234",
+            "anon": "",
+            "timestamp": "2016-03-07T23:43:30Z",
+            "comment": "/* Early history */",
+            "texthidden": ""
+          },
+          {
+            "revid": 708853655,
+            "parentid": 708853577,
+            "user": "FoCuSandLeArN",
+            "timestamp": "2016-03-07T23:44:17Z",
+            "comment": "Reverted to revision 708849211 by [[Special:Contributions/Ahecht|Ahecht]] ([[User talk:Ahecht|talk]]): Reverted copyvio. ([[WP:TW|TW]])",
+            "diff": {
+              "notcached": ""
+            }
+          },
+          {
+            "revid": 708970243,
+            "parentid": 708900460,
+            "user": "Jayleeshanghai",
+            "timestamp": "2016-03-08T13:31:33Z",
+            "comment": "/* Manufacturing */ national funded research on IoT-based predictive technologies for connected machines with the transformation of e-manufacturing and e-maintenance",
+            "diff": {
+              "notcached": ""
+            }
+          }
+          ]
+        },
+        "24848538": {
+          "pageid": 24848538,
+          "ns": 0,
+          "title": "Von Miller",
+          "revisions": [
+          {
+            "revid": 708319994,
+            "parentid": 708319974,
+            "user": "2605:A000:131D:A086:D0BC:D10:3599:4E73",
+            "anon": "",
+            "timestamp": "2016-03-04T22:28:40Z",
+            "comment": "",
+            "diff": {
+              "from": 708319974,
+              "to": 708319994,
+              "*": ""
+            }
+          }
+          ]
+        }
+      }
+    }
+}
