@@ -53,4 +53,5 @@ emitter.on(EVENTS.article_deleted, function(message){
 
 persister.startMonitoring();
 
-modules.EditLog.EditLog.start(config, emitter);
+var editLog = new modules.EditLog.EditLog(config, emitter);
+editLog.start();

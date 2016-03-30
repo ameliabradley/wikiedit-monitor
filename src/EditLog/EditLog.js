@@ -1,46 +1,43 @@
-var sprintf = require("sprintf-js").sprintf,
-   SocketManager = require('./SocketManager.js')
-   RevisionList = require('./RevisionList.js')
-   WikiApi = require('./WikiApi.js');
+const  sprintf = require("sprintf-js").sprintf,
+       SocketManager = require('./SocketManager.js'),
+       RevisionList = require('./RevisionList.js'),
+       WikiApi = require('./WikiApi.js'),
+       EVENTS = require('./EventDefinitions.js');
 
-const EVENTS = require('./EventDefinitions.js');
-
-function fieldExists(obj, fieldPath) {
-  if(fieldPath.length < 1) {
-    throw new Error('fieldExists requires a string with a length greater than 1');
-  }
-
-  if(obj) {
-    for(var f of fieldPath.split('.')) {
-      if(f in obj) {
-        obj = obj[f];
-      } else {
-        return false;
-      }
-    }
-
-    return true;
-  } else {
-    return false;
-  }
-}
-
-module.exports = {};
-
-module.exports.start = function start(config, eventEmitter){
+function EditLog (config, m_eventEmitter) {
+  var self = this;
   var conString = config.conString;
 
+  function fieldExists(obj, fieldPath) {
+    if(fieldPath.length < 1) {
+      throw new Error('fieldExists requires a string with a length greater than 1');
+    }
+
+    if(obj) {
+      for(var f of fieldPath.split('.')) {
+        if(f in obj) {
+          obj = obj[f];
+        } else {
+          return false;
+        }
+      }
+
+      return true;
+    } else {
+      return false;
+    }
+  }
   // This app caches revs and queries the diffs in bulk
   const WIKI_API_QUERY_INTERVAL = 5000;
   const MAX_REQUEST_REVS = 50;
   const MAX_NOTCACHED_RETRIES = 50;
 
   // Caching / App state
-  var revisionList = new RevisionList();
-  var wikiApi = new WikiApi();
+  var m_revisionList = new RevisionList();
+  var m_wikiApi = new WikiApi(config);
 
   function logError (revnew, type, data, url, bConsole) {
-    eventEmitter.emit(EVENTS.logged_error, {
+    m_eventEmitter.emit(EVENTS.logged_error, {
       revnew: parseInt(revnew),
       type: type,
       data: data,
@@ -49,10 +46,10 @@ module.exports.start = function start(config, eventEmitter){
   }
 
   function attemptRetryForBadDiff(revid, strError, page, strUrl) {
-     revisionList.releaseRevision(revid);
+    m_revisionList.releaseRevision(revid);
 
      // Strikes until I'm not querying for this revision's diff anymore
-     if (revisionList.getReleaseCount(revid) > MAX_NOTCACHED_RETRIES) {
+    if (m_revisionList.getReleaseCount(revid) > MAX_NOTCACHED_RETRIES) {
         // Something's wrong with this revision! :(
         // NOTE: Usually happens with an admin's revdelete revision
         // EX: https://en.wikipedia.org/w/api.php?action=query&prop=revisions&format=json&rvdiffto=prev&revids=696894315
@@ -63,11 +60,11 @@ module.exports.start = function start(config, eventEmitter){
         // Keep in mind though, there MAY be revdelete types that don't exhibit this behavior?
         
         logError(revid, "GAVE UP REQUERYING: " + strError, page, strUrl, false);
-        revisionList.purgeRevision(revid);
+        m_revisionList.purgeRevision(revid);
      } else {
-       eventEmitter.emit(EVENTS.save_revision_for_retry, {
+       m_eventEmitter.emit(EVENTS.save_revision_for_retry, {
          revid: revid,
-         revision: revisionList.getRevisionData(revid),
+         revision: m_revisionList.getRevisionData(revid),
          strError: strError,
          page: page,
          strUrl: strUrl
@@ -76,8 +73,8 @@ module.exports.start = function start(config, eventEmitter){
   }
 
   function doBulkQuery () {
-     var aRevIds = revisionList.reserveRevisions(MAX_REQUEST_REVS);
-     wikiApi.getRevisions(
+    var aRevIds = m_revisionList.reserveRevisions(MAX_REQUEST_REVS);
+    m_wikiApi.getRevisions(
          aRevIds,
          function(parsed, strUrl){
            var wikiedits = [];
@@ -94,7 +91,7 @@ module.exports.start = function start(config, eventEmitter){
                for(var revision of page.revisions) {
                  var revid = revision.revid;
                  if (fieldExists(revision, 'diff.*')) {
-                   var oRev = revisionList.getRevisionData(revid);
+                   var oRev = m_revisionList.getRevisionData(revid);
                    wikiedits.push({
                      revnew: parseInt(revid),
                      revold: parseInt(oRev.revold),
@@ -104,21 +101,55 @@ module.exports.start = function start(config, eventEmitter){
                      username: oRev.username,
                      diff: revision.diff['*']
                    });
-                   revisionList.purgeRevision(revid);
+                   m_revisionList.purgeRevision(revid);
                  } else if (fieldExists(revision, 'diff.notcached')) {
                    // This is a probably a bug where the diffs haven't been cached yet
                    // Can solve either by waiting or requesting individually
                    // SEE: https://phabricator.wikimedia.org/T31223
-                   rejected.not_cached.push(revisionList.getRevisionData(revid));
+                   rejected.not_cached.push(m_revisionList.getRevisionData(revid));
                    attemptRetryForBadDiff(revid, "Wikipedia returned empty diff", page, strUrl);
                  } else if (revid) {
+                // One of three things has happened
+                // 1) This revision is an administrative revdelete
+                // 2) The previous revision was revdeleted, so it can't be diffed against
+                //    (revdeletes can happen without the admin entering an additional revision)
+                // 3) Wikipedia is being slow and stupid (happens often actually)
+
+                // TODO: Let's look at the page history and get some more detail...
+                /*
+                var strTitle = page.title;
+                var strUrl = "https://en.wikipedia.org/w/index.php?action=history&title=Internet%20of%20Things";
+                http.get(strUrl, function (response) {
+                  var body = "";
+
+                  response.on('data', function (chunk) {
+                    body += chunk;
+                  });
+
+                  response.on('end', function () {
+                    console.log("done");
+                    //console.log(body);
+                    var aDeletedRevs = [];
+                    var jBody = $(body);
+                    jBody.find("ul#pagehistory li input[disabled='disabled'][name='diff']").each(function (i, el) {
+                      var strVal = $(this).val();
+                      aDeletedRevs.push(strVal);
+                    });
+
+                    // Go to the next page for more revisions...
+                    var strUrlNextPage = $("[rel='next']").attr("href");
+                    console.log(aDeletedRevs);
+                  });
+                });
+                */
+
                    logError(revid, "Probably revdelete", page, strUrl);
-                   rejected.revdelete.push(revisionList.getRevisionData(revid));
-                   revisionList.purgeRevision(revid);
+                   rejected.revdelete.push(m_revisionList.getRevisionData(revid));
+                   m_revisionList.purgeRevision(revid);
                  } else {
                    logError(revid, "bad diff", page, strUrl);
-                   rejected.bad_diff.push(revisionList.getRevisionData(revid));
-                   revisionList.purgeRevision(revid);
+                   rejected.bad_diff.push(m_revisionList.getRevisionData(revid));
+                   m_revisionList.purgeRevision(revid);
                  }
                }
              } else {
@@ -126,20 +157,20 @@ module.exports.start = function start(config, eventEmitter){
              }
            }
 
-           for(var revnew of revisionList.reservedRevisions) {
+           for(var revnew of m_revisionList.reservedRevisions) {
              if(fieldExists(parsed, 'query.badrevids.' + revnew)) {
                // If a revid is included in parsed.query.badrevids, it may be
                // available in a later query result.
-               rejected.bad_rev_id.push(revisionList.getRevisionData(revid));
+               rejected.bad_rev_id.push(m_revisionList.getRevisionData(revid));
                attemptRetryForBadDiff(revnew, "Wikipedia placed the revision in badrevids", {}, strUrl);
              } else {
                logError(revnew, "Wikipedia failed to return anything", parsed, strUrl);
-               rejected.returned_nothing.push(revisionList.getRevisionData(revid));
-               revisionList.purgeRevision(revnew);
+               rejected.returned_nothing.push(m_revisionList.getRevisionData(revid));
+               m_revisionList.purgeRevision(revnew);
              }
            }
 
-           eventEmitter.emit(EVENTS.wikiedits, {
+           m_eventEmitter.emit(EVENTS.wikiedits, {
              response: parsed,
              url: strUrl,
              edits: wikiedits,
@@ -148,7 +179,7 @@ module.exports.start = function start(config, eventEmitter){
          },
          function (message, content, strUrl) {
             logError(null, message, content, strUrl);
-            revisionList.releaseRevisions(aRevIds);
+        m_revisionList.releaseRevisions(aRevIds);
          }
      );
   }
@@ -157,18 +188,18 @@ module.exports.start = function start(config, eventEmitter){
      var iRevsDeleted = 0;
 
      var deletedRevisions = [];
-     for (var revid of revisionList.revisions) {
-        var oRev = revisionList.getRevisionData(revid);
+     for (var revid of m_revisionList.revisions) {
+        var oRev = m_revisionList.getRevisionData(revid);
 
         if (oRev.title === strTitle) {
            deletedRevisions.push(oRev);
            logError(iRevId, "Revision could not be queried because article was deleted", oRev, "", false);
-           revisionList.purgeRevision(revid);
+        m_revisionList.purgeRevision(revid);
            iRevsDeleted++;
         }
      }
 
-     eventEmitter.emit(EVENTS.article_deleted, {
+     m_eventEmitter.emit(EVENTS.article_deleted, {
        title: strTitle,
        socketdata: message,
        deletedRevisionCount: iRevsDeleted,
@@ -176,7 +207,9 @@ module.exports.start = function start(config, eventEmitter){
      });
   }
 
-  SocketManager.connect(
+  self.start = function () {
+    m_socketManager = new SocketManager();
+    m_socketManager.connect(
       config,
       function(message){
           /*
@@ -197,7 +230,7 @@ module.exports.start = function start(config, eventEmitter){
             minor: false,
             revision: { new: 696823369, old: null } };
           */
-          eventEmitter.emit(EVENTS.socketdata, message);
+          m_eventEmitter.emit(EVENTS.socketdata, message);
 
           if (message.log_action === "delete") {
              cullDeletedItems(message.title, message);
@@ -220,8 +253,8 @@ module.exports.start = function start(config, eventEmitter){
                 wiki: wiki,
                 username: message.user
              };
-             revisionList.addRevision(revnew, foundRevision);
-             eventEmitter.emit(EVENTS.revision_found, foundRevision);
+             m_revisionList.addRevision(revnew, foundRevision);
+             m_eventEmitter.emit(EVENTS.revision_found, foundRevision);
           }
       },
       function(message, err){
@@ -229,8 +262,15 @@ module.exports.start = function start(config, eventEmitter){
       }
   );
   setInterval(function(){
-    if(revisionList.count > 0 && wikiApi.isNewRequestAllowed()) {
+      if(m_revisionList.count > 0 && m_wikiApi.isNewRequestAllowed()) {
       doBulkQuery();
     }
   }, WIKI_API_QUERY_INTERVAL);
 };
+
+  self.stop = function () {
+    m_socketManager.disconnect();
+  };
+};
+
+module.exports = EditLog;
