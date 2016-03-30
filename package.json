@@ -2,12 +2,10 @@
   "name": "wikistream",
   "version": "0.0.1",
   "private": true,
-  "scripts": {
-    "test": "node test/sample-data-test.js"
-  },
   "dependencies": {
     "async": "^1.5.2",
     "auto-loader": "^0.2.0",
+    "bower": "^1.7.7",
     "cheerio": "^0.20.0",
     "dateformat": "^1.0.12",
     "debounce": "^1.0.0",
