@@ -9,42 +9,8 @@ var sprintf = require("sprintf-js").sprintf,
     async = require('async'),
     EVENTS = require('./EventDefinitions.js');
 
-function withMongoConnection(conString, callback) {
-  if(conString) {
-    MongoClient.connect(conString, function(err, db) {
-      if (err) console.error('error fetching client from pool', err);
-      callback(err, db);
-    });
-  } else {
-      var errorMessage = sprintf(ERROR_MISSING_CONFIG, 'conString', 'connect to the database');
-      console.log(errorMessage);
-
-      var error = new Error(errorMessage);
-      callback(error, {});
-  }
-}
-
-function insertData(conString, collection, records, callback) {
-  if(records.length < 1) {
-    callback();
-    return;
-  }
-  withMongoConnection(conString, function(err, db) {
-    if (err) {
-      callback(err);
-      return;
-    }
-    db.collection(collection).insert(
-      records,
-      function(err, result){
-        db.close();
-        callback(err, result);
-      }
-    );
-  });
-}
-
 function persistChanges(persisterData){
+  var connector = persisterData.connector;
   var iBeforeQuery = (new Date()).getTime();
 
   var tmpQueues = {};
@@ -52,8 +18,7 @@ function persistChanges(persisterData){
   Object.keys(persisterData.queues).forEach(function(q){
     tmpQueues[q] = persisterData.queues[q].slice();
     dbChanges.push(function(callback){
-      insertData(
-          persisterData.conString,
+      connector.insertData(
           q,
           tmpQueues[q],
           function(err, result){
@@ -94,16 +59,12 @@ function persistChanges(persisterData){
 
 var persisters = new WeakMap();
 class PeriodicPersister {
-  constructor(options) {
+  constructor(emitter, connector) {
 
     persisters.set(this, {
-      conString: options.conString,
-      emitter: options.emitter,
-      queues: {
-        socketdata: [],
-        wikiedits: [],
-        errorlog: [],
-      },
+      emitter: emitter,
+      connector: connector,
+      queues: {},
       monitoring: false,
       timeout: null
     });
@@ -117,22 +78,12 @@ class PeriodicPersister {
       throw Error('Cannot start monitoring more than once.');
     }
 
-    var saveSocketMessage;
-    emitter.on(EVENTS.socketdata, saveSocketMessage = function (message){
-      queues.socketdata.push({ message: message });
-    });
-
-    var saveWikiEdits;
-    emitter.on(EVENTS.wikiedits, saveWikiEdits = function (message){
-      if(message.edits.length) {
-        queues.wikiedits.push.apply(queues.wikiedits, message.edits);
-      }
-    });
-
-    var saveErrorMessage;
-    emitter.on(EVENTS.logged_error, saveErrorMessage = function (message){
-      message.revnew = parseInt(message.revnew);
-      queues.errorlog.push(message);
+    var saveData;
+    emitter.on(EVENTS.persist_data, saveData = function (message){
+        if( ! ( message.collection in queues)) {
+            queues[message.collection] = [];
+        }
+        queues[message.collection].push.apply(queues[message.collection], message.records);
     });
 
     opts.timeout = setTimeout(function(){
@@ -141,9 +92,7 @@ class PeriodicPersister {
 
     opts.monitoring = true;
     opts.listeners = {
-      socketdata: saveSocketMessage,
-      wikiedits: saveWikiEdits,
-      logged_error: saveErrorMessage
+      persist_data: saveData,
     };
   }
   stopMonitoring() {
@@ -158,9 +107,7 @@ class PeriodicPersister {
     clearTimeout(opts.timeout);
     opts.timeout = null;
 
-    emitter.removeListener(EVENTS.socketdata, listeners.socketdata);
-    emitter.removeListener(EVENTS.wikiedits, listeners.wikiedits);
-    emitter.removeListener(EVENTS.logged_error, listeners.logged_error);
+    emitter.removeListener(EVENTS.persist_data, listeners.persist_data);
 
     opts.monitoring = false;
     delete opts.listeners;
