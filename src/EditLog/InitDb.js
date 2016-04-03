@@ -79,11 +79,12 @@ function InitDb (config) {
         }
     }
 
-    function createCollectionIndex(collection, index, callback) {
+    function createCollectionIndex(collection, index, callback, createOptions) {
         withMongoConnection(function(err, db){
             if(err) return callback(err, null);
             db.collection(collection).createIndex(
                     index,
+                    createOptions,
                     function(err, result){
                         if(err) {
                             console.error(sprintf(ERROR_MESSAGE_INDEX, JSON.stringify(index), collection), err);
@@ -132,6 +133,19 @@ function InitDb (config) {
             var collection = 'wikiedits';
             var index = {'title': 1, 'wiki': 1};
             createCollectionIndex(collection, index, callback);
+        },
+
+        function(callback) {
+            var collection = 'socketdata_last_hour';
+            var index = {'message.title': 1, 'message.wiki': 1};
+            createCollectionIndex(collection, index, callback);
+        },
+
+        function(callback) {
+            var collection = 'socketdata_last_hour';
+            var index = {'inserted_time': 1};
+            var options = {'expireAfterSeconds': 3600};
+            createCollectionIndex(collection, index, callback, options);
         }
     ];
 

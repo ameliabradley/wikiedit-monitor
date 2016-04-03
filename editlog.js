@@ -12,11 +12,7 @@ var config = JSON.parse(fs.readFileSync(configPath));
 
 var emitter = new EventEmitter();
 
-var EVENTS = modules.EditLog.EventDefinitions,
-    persister = new modules.EditLog.PeriodicPersister({
-      conString: config.conString,
-      emitter: emitter
-    });
+var EVENTS = modules.EditLog.EventDefinitions;
     
 // Previous socket data logging
 // emitter.on(EVENTS.socketdata, function(message){
@@ -51,7 +47,14 @@ emitter.on(EVENTS.article_deleted, function(message){
    }
 });
 
-persister.startMonitoring();
+var connector = new modules.Persistence.MongoConnector(config.conString)
+    persister = new modules.Persistence.PeriodicPersister(emitter, connector),
+    editDataTracker = new modules.EditLog.EditDataTracker(emitter),
+    associationTracker = new modules.Analytics.AssociationTracker(emitter, connector),
+    editLog = new modules.EditLog.EditLog(config, emitter);
 
-var editLog = new modules.EditLog.EditLog(config, emitter);
+persister.startMonitoring();
+editDataTracker.startMonitoring();
+associationTracker.startMonitoring();
+
 editLog.start();
