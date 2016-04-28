@@ -80,7 +80,7 @@ WikiEditDashboard.prototype.updateSocketGraph = function(result){
 
     socketData = socketData.sort((a,b) => b.cnt - a.cnt).slice(0, 20);
 
-    this._xAxis.ticks = d3.max(socketData, (d) => d.cnt);
+    this._xAxis.ticks = Math.min(d3.max(socketData, (d) => d.cnt), 20);
 
     this._chart.data = socketData;
     this._chart.draw(1000);
