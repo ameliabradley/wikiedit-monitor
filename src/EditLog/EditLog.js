@@ -194,7 +194,7 @@ function EditLog (config, m_eventEmitter) {
         if (oRev && oRev.title === strTitle) {
            deletedRevisions.push(oRev);
            logError(revid, "Revision could not be queried because article was deleted", oRev, "", false);
-        m_revisionList.purgeRevision(revid);
+           m_revisionList.purgeRevision(revid);
            iRevsDeleted++;
         }
      }
