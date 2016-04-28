@@ -27,7 +27,7 @@ DataPublisher.prototype.startPolling = function(){
     });
 };
 
-function ChangesGraph(containerId, fieldTitle, fieldFunction) {
+function ChangesGraph(containerId, fieldTitle, rawFieldName, fieldFunction) {
     this._margin = {
         top: 10,
         left: 300,
@@ -42,6 +42,7 @@ function ChangesGraph(containerId, fieldTitle, fieldFunction) {
     this._width = this._fullWidth - this._margin.left - this._margin.right;
 
     this._fieldTitle = fieldTitle;
+    this._rawFieldName = rawFieldName;
     this._fieldFunction = fieldFunction;
     this._container = d3.select(containerId)
 }
@@ -61,7 +62,7 @@ ChangesGraph.prototype.loadSocketGraph = function(){
     chart.eash = 'sin';
     this._chart = chart;
 
-    var yAxis = chart.addCategoryAxis('y', 'title');
+    var yAxis = chart.addCategoryAxis('y', this._rawFieldName);
     yAxis.title = this._fieldTitle;
     yAxis.addOrderRule('cnt');
     this._yAxis = yAxis;
@@ -104,10 +105,10 @@ ChangesGraph.prototype.updateSocketGraph = function(result){
     this._chart.draw(1000);
 };
 
-var mostActiveArticles = new ChangesGraph('#active_articles', 'Article', (d) => d.message.title);
+var mostActiveArticles = new ChangesGraph('#active_articles', 'Article', 'title', (d) => d.message.title);
 mostActiveArticles.loadSocketGraph();
 
-var mostActiveUsers = new ChangesGraph('#active_users', 'User', (d) => d.message.user);
+var mostActiveUsers = new ChangesGraph('#active_users', 'User','user', (d) => d.message.user);
 mostActiveUsers.loadSocketGraph();
 
 var publisher = new DataPublisher({
