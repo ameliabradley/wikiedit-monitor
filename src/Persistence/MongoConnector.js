@@ -14,16 +14,28 @@ class MongoConnector {
             throw new Error(errorMessage);
         }
 
-        mongos.set(this, conString);
+        mongos.set(this, {
+            conString: conString
+        });
     }
 
     withMongoConnection(callback) {
-        var conString = mongos.get(this);
+        var options = mongos.get(this);
 
-        MongoClient.connect(conString, function(err, db) {
-            if (err) console.error('error fetching client from pool', err);
-            callback(err, db);
-        });
+        if(options.db) {
+            callback(null, options.db);
+        } else {
+            var conString = options.conString;
+            MongoClient.connect(conString, function(err, db) {
+                if (err) {
+                    if(db) db.close();
+                    console.error('error fetching client from pool', err);
+                } else {
+                    options.db = db;
+                }
+                callback(err, db);
+            });
+        }
     }
 
     insertData(collection, records, callback) {
@@ -39,7 +51,6 @@ class MongoConnector {
         db.collection(collection).insert(
           records,
           function(err, result){
-            db.close();
             callback(err, result);
           }
         );

@@ -1,0 +1,16 @@
+.chart_title {
+    text-align: center;
+}
+
+#top_nav a {
+    background-color: #99d8c9;
+    padding: 5px 10px;
+    text-decoration:none;
+    color: #000;
+    border: 1px solid #2ca25f;
+}
+
+#top_nav a:hover {
+    background-color: #e5f5f9;
+    cursor:pointer;
+}
