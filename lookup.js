@@ -75,7 +75,7 @@ function handleRequest(request, res){
       || modules.Lookup.ErrorLog.ajaxCall(context, renderJsonResponse, error)
       || modules.Lookup.Dashboard(context, renderSimpleTemplate, error)
       || modules.Lookup.Dashboard.ajaxCall(context, renderJsonResponse, error)
-      || error('Oops, that page does not exist.');
+      || (db.close() && error('Oops, that page does not exist.'));
    });
 }
 
