@@ -63,9 +63,7 @@ class AssociationTracker {
                                 }
                             },
                             { upsert: true },
-                            function(){
-                                db.close();
-                            }
+                            function(){}
                     );
                 });
             });
