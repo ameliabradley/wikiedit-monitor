@@ -111,6 +111,12 @@ mostActiveArticles.loadSocketGraph();
 var mostActiveUsers = new ChangesGraph('#active_users', 'User','user', (d) => d.message.user);
 mostActiveUsers.loadSocketGraph();
 
+var mostUsedActionTypes = new ChangesGraph('#active_action_types', 'Action Type','type', (d) => d.message.type);
+mostUsedActionTypes.loadSocketGraph();
+
+var mostUsedComments = new ChangesGraph('#active_comments', 'Comment','comment', (d) => d.message.comment);
+mostUsedComments.loadSocketGraph();
+
 var publisher = new DataPublisher({
     url: '/?dash_socketdata=1',
     timeout: 5000
@@ -120,6 +126,14 @@ var publisher = new DataPublisher({
     },
     function(data){
         mostActiveUsers.updateSocketGraph(data);
+    },
+    function(data){
+        mostUsedActionTypes.updateSocketGraph(data);
+    },
+    function(data){
+        // XXX Hack to improve display of empty comments
+        data.data.forEach((d) => d.message.comment = d.message.comment || '(Empty)');
+        mostUsedComments.updateSocketGraph(data);
     }
 ]);
 publisher.startPolling();
