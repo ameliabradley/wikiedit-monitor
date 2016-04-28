@@ -21,7 +21,10 @@ class MongoConnector {
         var conString = mongos.get(this);
 
         MongoClient.connect(conString, function(err, db) {
-            if (err) console.error('error fetching client from pool', err);
+            if (err) {
+                if(db) db.close();
+                console.error('error fetching client from pool', err);
+            }
             callback(err, db);
         });
     }
