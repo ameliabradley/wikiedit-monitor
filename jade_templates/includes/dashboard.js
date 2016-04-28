@@ -46,9 +46,15 @@ WikiEditDashboard.prototype.loadSocketGraph = function(){
     chart.addSeries(null, dimple.plot.bar);
 
     var that = this;
-    d3.json(WikiEditDashboard.SOCKETDATA_URL, function(data){
-        that.updateSocketGraph(data)
-    });
+    (function triggerUpdateGraph(){
+        d3.json(WikiEditDashboard.SOCKETDATA_URL, function(error, data){
+            if(error) {
+                setTimeout(triggerUpdateGraph, WikiEditDashboard.SOCKET_GRAPH_TIMEOUT);
+            } else {
+                that.updateSocketGraph(data)
+            }
+        });
+    }());
 };
 
 WikiEditDashboard.prototype.updateSocketGraph = function(result){
@@ -80,9 +86,13 @@ WikiEditDashboard.prototype.updateSocketGraph = function(result){
     this._chart.draw(1000);
 
     var that = this;
-    setTimeout(function(){
-        d3.json(WikiEditDashboard.SOCKETDATA_URL, function(data){
-            that.updateSocketGraph(data)
+    setTimeout(function triggerUpdateGraph(){
+        d3.json(WikiEditDashboard.SOCKETDATA_URL, function(error, data){
+            if(error) {
+                setTimeout(triggerUpdateGraph, WikiEditDashboard.SOCKET_GRAPH_TIMEOUT);
+            } else {
+                that.updateSocketGraph(data)
+            }
         });
     }, WikiEditDashboard.SOCKET_GRAPH_TIMEOUT);
 };
