@@ -14,3 +14,7 @@
     background-color: #e5f5f9;
     cursor:pointer;
 }
+
+.chart {
+    display: inline-block;
+}

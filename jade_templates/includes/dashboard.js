@@ -1,5 +1,33 @@
+function DataPublisher(config, subscribers) {
+    this._url = config.url;
+    this._timeout = config.timeout;
+    this._subscribers = subscribers || [];
+}
 
-function WikiEditDashboard() {
+DataPublisher.prototype.addSubscriber = function(subscriber){
+    this._subscribers.push(subscriber);
+};
+
+DataPublisher.prototype._notifySubscribers = function(data){
+    for(var sub of this._subscribers) {
+        sub(data);
+    }
+};
+
+DataPublisher.prototype.startPolling = function(){
+    var that = this;
+    d3.json(this._url, function(error, data){
+        if( ! error) {
+            that._notifySubscribers(data);
+        }
+
+        setTimeout(function(){
+            that.startPolling();
+        }, that._timeout);
+    });
+};
+
+function ChangesGraph(containerId, fieldTitle, rawFieldName, fieldFunction) {
     this._margin = {
         top: 10,
         left: 300,
@@ -13,16 +41,16 @@ function WikiEditDashboard() {
     this._height = this._fullHeight - this._margin.top - this._margin.bottom;
     this._width = this._fullWidth - this._margin.left - this._margin.right;
 
-    this._container = d3.select('#socket_graph')
+    this._fieldTitle = fieldTitle;
+    this._rawFieldName = rawFieldName;
+    this._fieldFunction = fieldFunction;
+    this._container = d3.select(containerId)
 }
 
-WikiEditDashboard.SOCKETDATA_URL = '/?dash_socketdata=1';
-WikiEditDashboard.SOCKET_GRAPH_TIMEOUT = 5000;
-
-WikiEditDashboard.prototype.loadSocketGraph = function(){
+ChangesGraph.prototype.loadSocketGraph = function(){
     this._container.append('h3')
         .classed('chart_title', true)
-        .text('Most Active Articles (past hour)');
+        .text('Most Active ' + this._fieldTitle + 's (past hour)');
 
     this._svg = svg = this._container.append('svg');
 
@@ -34,8 +62,8 @@ WikiEditDashboard.prototype.loadSocketGraph = function(){
     chart.eash = 'sin';
     this._chart = chart;
 
-    var yAxis = chart.addCategoryAxis('y', 'title');
-    yAxis.title = 'Article';
+    var yAxis = chart.addCategoryAxis('y', this._rawFieldName);
+    yAxis.title = this._fieldTitle;
     yAxis.addOrderRule('cnt');
     this._yAxis = yAxis;
 
@@ -44,30 +72,21 @@ WikiEditDashboard.prototype.loadSocketGraph = function(){
     xAxis.title = 'Changes in Past Hour';
     this._xAxis = xAxis;
     chart.addSeries(null, dimple.plot.bar);
-
-    var that = this;
-    (function triggerUpdateGraph(){
-        d3.json(WikiEditDashboard.SOCKETDATA_URL, function(error, data){
-            if(error) {
-                setTimeout(triggerUpdateGraph, WikiEditDashboard.SOCKET_GRAPH_TIMEOUT);
-            } else {
-                that.updateSocketGraph(data)
-            }
-        });
-    }());
 };
 
-WikiEditDashboard.prototype.updateSocketGraph = function(result){
+ChangesGraph.prototype.updateSocketGraph = function(result){
+    var fieldFunction = this._fieldFunction;
     var socketData = result.data;
     var reducedData = socketData.reduce((n,d) => {
-            if(d.message.title in n)
+            var fieldVal = fieldFunction(d);
+            if(fieldVal in n)
             {
-                    n[d.message.title].cnt += 1;
+                    n[fieldVal].cnt += 1;
             }
             else
             {
                     d.message.cnt = 1;
-                    n[d.message.title] = d.message;
+                    n[fieldVal] = d.message;
             }
             return n;
     }, {});
@@ -80,22 +99,41 @@ WikiEditDashboard.prototype.updateSocketGraph = function(result){
 
     socketData = socketData.sort((a,b) => b.cnt - a.cnt).slice(0, 20);
 
-    this._xAxis.ticks = Math.min(d3.max(socketData, (d) => d.cnt), 20);
+    this._xAxis.ticks = Math.min(d3.max(socketData, (d) => d.cnt), 15);
 
     this._chart.data = socketData;
     this._chart.draw(1000);
-
-    var that = this;
-    setTimeout(function triggerUpdateGraph(){
-        d3.json(WikiEditDashboard.SOCKETDATA_URL, function(error, data){
-            if(error) {
-                setTimeout(triggerUpdateGraph, WikiEditDashboard.SOCKET_GRAPH_TIMEOUT);
-            } else {
-                that.updateSocketGraph(data)
-            }
-        });
-    }, WikiEditDashboard.SOCKET_GRAPH_TIMEOUT);
 };
 
-var dashboard = new WikiEditDashboard();
-dashboard.loadSocketGraph();
+var mostActiveArticles = new ChangesGraph('#active_articles', 'Article', 'title', (d) => d.message.title);
+mostActiveArticles.loadSocketGraph();
+
+var mostActiveUsers = new ChangesGraph('#active_users', 'User','user', (d) => d.message.user);
+mostActiveUsers.loadSocketGraph();
+
+var mostUsedActionTypes = new ChangesGraph('#active_action_types', 'Action Type','type', (d) => d.message.type);
+mostUsedActionTypes.loadSocketGraph();
+
+var mostUsedComments = new ChangesGraph('#active_comments', 'Comment','comment', (d) => d.message.comment);
+mostUsedComments.loadSocketGraph();
+
+var publisher = new DataPublisher({
+    url: '/?dash_socketdata=1',
+    timeout: 5000
+},[
+    function(data){
+        mostActiveArticles.updateSocketGraph(data);
+    },
+    function(data){
+        mostActiveUsers.updateSocketGraph(data);
+    },
+    function(data){
+        mostUsedActionTypes.updateSocketGraph(data);
+    },
+    function(data){
+        // XXX Hack to improve display of empty comments
+        data.data.forEach((d) => d.message.comment = d.message.comment || '(Empty)');
+        mostUsedComments.updateSocketGraph(data);
+    }
+]);
+publisher.startPolling();
