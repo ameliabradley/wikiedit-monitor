@@ -1,6 +1,5 @@
 function dashboardView(cxt, callback){
   if(Object.keys(cxt.url.query).length < 1) {
-    cxt.db.close();
     callback('dashboard.jade', {});
     return true;
   } else {
@@ -15,7 +14,6 @@ dashboardView.ajaxCall = function(cxt, callback, errorCallback){
     db.collection('socketdata_last_hour')
         .find({'message.wiki': wiki + 'wiki'})
         .toArray(function(error, data){
-            db.close();
             if(error) errorCallback(error);
             callback({
               wiki: wiki,

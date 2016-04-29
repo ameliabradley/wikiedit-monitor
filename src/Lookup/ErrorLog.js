@@ -112,7 +112,6 @@ errorView.ajaxCall = function(cxt, callback, errorCallback){
        }
     }]).toArray(function( err, errorRows ) {
      if (err) {
-       db.close();
        return errorCallback("db error: " + err);
      }
 
@@ -132,7 +131,6 @@ errorView.ajaxCall = function(cxt, callback, errorCallback){
        ]
      ).toArray(function( err, countRows ) {
        if (err) {
-         db.close();
          return errorCallback("db error: " + err);
        }
 
@@ -194,8 +192,6 @@ errorView.ajaxCall = function(cxt, callback, errorCallback){
           }
 
           db.collection('errorlog').count(function (err, iTotalCount) {
-             db.close();
-
              if (err) {
                 console.log(err);
                 return;

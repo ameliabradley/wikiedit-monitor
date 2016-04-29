@@ -5,7 +5,8 @@ var loader = require('auto-loader'),
     fs = require('fs'),
     path = require('path'),
     jade = require('jade'),
-    MongoClient = require('mongodb').MongoClient;
+    MongoClient = require('mongodb').MongoClient,
+    wikiDb = null;
 
 var modules = loader.load(__dirname + '/src');
 
@@ -60,23 +61,19 @@ function handleRequest(request, res){
        res.send(JSON.stringify(jsObj));
    }
 
-  MongoClient.connect(conString, function(err, db) {
-    if (err) return console.error('error fetching client from pool', err);
+   var context = {
+     url: urlObject,
+     wiki: wiki,
+     db: wikiDb
+   };
 
-      var context = {
-        url: urlObject,
-        wiki: wiki,
-        db: db
-      };
-
-      modules.Lookup.DiffSearch(context, renderSimpleTemplate, error)
-      || modules.Lookup.TitleSearch(context, renderSimpleTemplate, error)
-      || modules.Lookup.ErrorLog(context, renderSimpleTemplate, error)
-      || modules.Lookup.ErrorLog.ajaxCall(context, renderJsonResponse, error)
-      || modules.Lookup.Dashboard(context, renderSimpleTemplate, error)
-      || modules.Lookup.Dashboard.ajaxCall(context, renderJsonResponse, error)
-      || (db.close() && error('Oops, that page does not exist.'));
-   });
+   modules.Lookup.DiffSearch(context, renderSimpleTemplate, error)
+   || modules.Lookup.TitleSearch(context, renderSimpleTemplate, error)
+   || modules.Lookup.ErrorLog(context, renderSimpleTemplate, error)
+   || modules.Lookup.ErrorLog.ajaxCall(context, renderJsonResponse, error)
+   || modules.Lookup.Dashboard(context, renderSimpleTemplate, error)
+   || modules.Lookup.Dashboard.ajaxCall(context, renderJsonResponse, error)
+   || error('Oops, that page does not exist.');
 }
 
 //Create a server
@@ -92,7 +89,14 @@ app.configure(function () {
 
 app.get('/', handleRequest);
 
-app.listen(PORT, function(){
-    //Callback triggered when server is successfully listening. Hurray!
-    console.log("Server listening on: http://localhost:%s", PORT);
+MongoClient.connect(conString, function(err, db) {
+    if(err) {
+        console.log('Failed to connect to database, aborting.', err);
+        return;
+    }
+    wikiDb = db;
+    app.listen(PORT, function(){
+        //Callback triggered when server is successfully listening. Hurray!
+        console.log("Server listening on: http://localhost:%s", PORT);
+    });
 });
