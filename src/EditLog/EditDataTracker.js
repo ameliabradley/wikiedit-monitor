@@ -1,7 +1,7 @@
 "use strict";
 
 const EVENTS = require('./EventDefinitions.js'),
-    PERSISTENCE_EVENTS = require('../Persistence/EventDefinitions.js');
+  PERSISTENCE_EVENTS = require('../Persistence/EventDefinitions.js');
 
 var trackers = new WeakMap();
 class EditDataTracker {
@@ -13,37 +13,39 @@ class EditDataTracker {
   }
   startMonitoring() {
     var opts = trackers.get(this),
-        emitter = opts.emitter;
+      emitter = opts.emitter;
 
-    if(opts.monitoring) {
+    if (opts.monitoring) {
       throw Error('Cannot start monitoring more than once.');
     }
 
     var saveSocketMessage;
-    emitter.on(EVENTS.socketdata, saveSocketMessage = function (message){
-        emitter.emit(PERSISTENCE_EVENTS.persist_data, {
-            collection: 'socketdata',
-            records: [{ message: message }]
-        });
+    emitter.on(EVENTS.socketdata, saveSocketMessage = function(message) {
+      emitter.emit(PERSISTENCE_EVENTS.persist_data, {
+        collection: 'socketdata',
+        records: [{
+          message: message
+        }]
+      });
     });
 
     var saveWikiEdits;
-    emitter.on(EVENTS.wikiedits, saveWikiEdits = function (message){
-      if(message.edits.length) {
+    emitter.on(EVENTS.wikiedits, saveWikiEdits = function(message) {
+      if (message.edits.length) {
         emitter.emit(PERSISTENCE_EVENTS.persist_data, {
-            collection: 'wikiedits',
-            records: message.edits
+          collection: 'wikiedits',
+          records: message.edits
         });
       }
     });
 
     var saveErrorMessage;
-    emitter.on(EVENTS.logged_error, saveErrorMessage = function (message){
-        message.revnew = parseInt(message.revnew);
-        emitter.emit(PERSISTENCE_EVENTS.persist_data, {
-            collection: 'errorlog',
-            records: [message]
-        });
+    emitter.on(EVENTS.logged_error, saveErrorMessage = function(message) {
+      message.revnew = parseInt(message.revnew);
+      emitter.emit(PERSISTENCE_EVENTS.persist_data, {
+        collection: 'errorlog',
+        records: [message]
+      });
     });
 
     opts.monitoring = true;
@@ -55,10 +57,10 @@ class EditDataTracker {
   }
   stopMonitoring() {
     var opts = trackers.get(this),
-        emitter = opts.emitter,
-        listeners = opts.listeners;
+      emitter = opts.emitter,
+      listeners = opts.listeners;
 
-    if(opts.monitoring) {
+    if (opts.monitoring) {
       throw Error('Cannot stop monitoring when you\'re not monitoring.');
     }
 
