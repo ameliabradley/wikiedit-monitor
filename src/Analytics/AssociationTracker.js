@@ -41,7 +41,9 @@ class AssociationTracker {
                         record.message.user
                     ].sort();
                     
-                    console.log('Users both editing [', message.title, ']: (', userPair[0], '), (', userPair[1], ')');
+                    // Commenting because this is very loud.
+                    //console.log('Users both editing [', message.title, ']: (', userPair[0], '), (', userPair[1], ')');
+
                     // Detect edit wars, sock puppets, and relate users to their IP addresses
                     // 
                     // Higher incidence for a small number of articles indicates edit wars.
