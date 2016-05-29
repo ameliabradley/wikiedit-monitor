@@ -1,8 +1,9 @@
-function DataPublisher(config, subscribers) {
-    this._urlParser = document.createElement('a');
+function DataPublisher(config, subscribers, dataProcessor) {
     this._url = config.url;
+    this._timeRange = config.timeRange || (60*60);
     this._timeout = config.timeout;
     this._subscribers = subscribers || [];
+    this._dataProcessor = dataProcessor || ((d) => d);
 }
 
 DataPublisher.prototype.addSubscriber = function(subscriber){
@@ -10,6 +11,7 @@ DataPublisher.prototype.addSubscriber = function(subscriber){
 };
 
 DataPublisher.prototype._notifySubscribers = function(data){
+    data = this._dataProcessor(data);
     for(var sub of this._subscribers) {
         sub(data);
     }
@@ -18,7 +20,7 @@ DataPublisher.prototype._notifySubscribers = function(data){
 DataPublisher.prototype.startPolling = function(){
     var that = this;
     var endTime = ((new Date()).getTime()/1000).toFixed(0);
-    var startTime = endTime - (60*60); // minus one hour
+    var startTime = endTime - this._timeRange; // minus one hour
 
     var urlPrefix;
     if(this._url.indexOf('?') === -1) {
@@ -42,7 +44,7 @@ DataPublisher.prototype.startPolling = function(){
     );
 };
 
-function ChangesGraph(containerId, fieldTitle, rawFieldName, fieldFunction) {
+function ChangesGraph(xFieldTitle, yFieldTitle, fieldPath) {
     this._margin = {
         top: 10,
         left: 300,
@@ -56,18 +58,29 @@ function ChangesGraph(containerId, fieldTitle, rawFieldName, fieldFunction) {
     this._height = this._fullHeight - this._margin.top - this._margin.bottom;
     this._width = this._fullWidth - this._margin.left - this._margin.right;
 
-    this._fieldTitle = fieldTitle;
-    this._rawFieldName = rawFieldName;
-    this._fieldFunction = fieldFunction;
-    this._container = d3.select(containerId)
+    this._xFieldTitle = xFieldTitle || 'Changes in Past Hour';
+    this._yFieldTitle = yFieldTitle;
+
+    var pathParts = fieldPath.split('.');
+    this._fieldFunction = (d) => {
+        var con = d;
+        for(var i of pathParts) {
+            if(i in con) {
+                con = con[i];
+            } else {
+                return undefined;
+            }
+        }
+        return con;
+    };
 }
 
-ChangesGraph.prototype.loadSocketGraph = function(){
-    this._container.append('h3')
+ChangesGraph.prototype.loadGraph = function(container){
+    container.append('h3')
         .classed('chart_title', true)
-        .text('Most Active ' + this._fieldTitle + 's (past hour)');
+        .text('Most Active ' + this._yFieldTitle + 's');
 
-    this._svg = svg = this._container.append('svg');
+    this._svg = svg = container.append('svg');
 
     svg.attr('width', this._fullWidth);
     svg.attr('height', this._fullHeight);
@@ -77,19 +90,19 @@ ChangesGraph.prototype.loadSocketGraph = function(){
     chart.eash = 'sin';
     this._chart = chart;
 
-    var yAxis = chart.addCategoryAxis('y', this._rawFieldName);
-    yAxis.title = this._fieldTitle;
+    var yAxis = chart.addCategoryAxis('y', 'val');
+    yAxis.title = this._yFieldTitle;
     yAxis.addOrderRule('cnt');
     this._yAxis = yAxis;
 
     var xAxis = chart.addMeasureAxis('x', 'cnt');
     xAxis.tickFormat = d3.format(',.1f');
-    xAxis.title = 'Changes in Past Hour';
+    xAxis.title = this._xFieldTitle;
     this._xAxis = xAxis;
     chart.addSeries(null, dimple.plot.bar);
 };
 
-ChangesGraph.prototype.updateSocketGraph = function(result){
+ChangesGraph.prototype.updateGraph = function(result){
     var fieldFunction = this._fieldFunction;
     var socketData = result.data;
     var reducedData = socketData.reduce((n,d) => {
@@ -100,8 +113,7 @@ ChangesGraph.prototype.updateSocketGraph = function(result){
             }
             else
             {
-                    d.message.cnt = 1;
-                    n[fieldVal] = d.message;
+                    n[fieldVal] = { cnt: 1, val: fieldVal };
             }
             return n;
     }, {});
@@ -120,35 +132,81 @@ ChangesGraph.prototype.updateSocketGraph = function(result){
     this._chart.draw(1000);
 };
 
-var mostActiveArticles = new ChangesGraph('#active_articles', 'Article', 'title', (d) => d.message.title);
-mostActiveArticles.loadSocketGraph();
-
-var mostActiveUsers = new ChangesGraph('#active_users', 'User','user', (d) => d.message.user);
-mostActiveUsers.loadSocketGraph();
-
-var mostUsedActionTypes = new ChangesGraph('#active_action_types', 'Action Type','type', (d) => d.message.type);
-mostUsedActionTypes.loadSocketGraph();
-
-var mostUsedComments = new ChangesGraph('#active_comments', 'Comment','comment', (d) => d.message.comment);
-mostUsedComments.loadSocketGraph();
-
-var publisher = new DataPublisher({
-    url: '/?dash_socketdata=1',
-    timeout: 5000
-},[
-    function(data){
-        mostActiveArticles.updateSocketGraph(data);
-    },
-    function(data){
-        mostActiveUsers.updateSocketGraph(data);
-    },
-    function(data){
-        mostUsedActionTypes.updateSocketGraph(data);
-    },
-    function(data){
-        // XXX Hack to improve display of empty comments
-        data.data.forEach((d) => d.message.comment = d.message.comment || '(Empty)');
-        mostUsedComments.updateSocketGraph(data);
+// d3.json('/?dash_config=1', function(err, data){
+(function(err, data){
+    var err = null;
+    if(err) {
+        alert('Error - could not show dashboard. See log for more details.');
+        throw err;
     }
-]);
-publisher.startPolling();
+
+    var config = data.config;
+    
+    if(config && config.graphList && config.graphList.length) {
+        if( ! window.graphList) window.graphList = {};
+
+        var mainGraph = d3.select('#main_graph_area');
+        var graphSubList = [];
+        for(var gi in config.graphList) {
+            var graph = config.graphList[gi],
+                type = graph.type.split('.'),
+                gClass = window;
+
+            for(var i in type) {
+                gClass = gClass[type[i]];
+            }
+
+            var chartElement = mainGraph.append('div').classed('chart', true);
+            var argsCopy = graph.arguments.slice();
+            argsCopy.unshift(null)
+            var newGraph = new (Function.prototype.bind.apply(gClass, argsCopy));
+            newGraph.loadGraph(chartElement);
+            graphSubList.push(newGraph.updateGraph.bind(newGraph));
+            window.graphList['graph_' + gi] = newGraph;
+        }
+        var publisher = new DataPublisher({
+            url: '/?dash_socketdata=1',
+            timeout: 5000,
+            timeRange: (60*60*24)
+        },graphSubList, (data) => {
+            data.data.forEach((d) => d.message.comment = d.message.comment || '(Empty)')
+            return data;
+        });
+        publisher.startPolling();
+        d3.select('#create_graph_button').on('click', function(){
+            var graphE = d3.select('#add_graph');
+
+            var type = graphE.select('#GraphType').property('value').split('.'),
+                gClass = window;
+
+            for(var i in type) {
+                gClass = gClass[type[i]];
+            }
+
+            var chartElement = mainGraph.insert('div', ':first-child').classed('chart', true);
+            var args = [
+                null,
+                graphE.select('#XTitle').property('value'),
+                graphE.select('#YTitle').property('value'),
+                'message.' + graphE.select('#fieldPath').property('value')
+            ];
+            var newGraph = new (Function.prototype.bind.apply(gClass, args));
+            newGraph.loadGraph(chartElement);
+            graphSubList.push(newGraph.updateGraph.bind(newGraph));
+            gi += 1;
+            window.graphList['graph_' + gi] = newGraph;
+        });
+    }
+}(
+    null,
+    {
+        config: {
+            graphList: [
+                {type: 'ChangesGraph', arguments: ['Changes in Past 24 Hours', 'Article','message.title'] },
+                {type: 'ChangesGraph', arguments: ['Changes in Past 24 Hours', 'User','message.user'] },
+                {type: 'ChangesGraph', arguments: ['Changes in Past 24 Hours', 'Action Type','message.type'] },
+                {type: 'ChangesGraph', arguments: ['Changes in Past 24 Hours', 'Comment','message.comment'] }
+            ]
+        }
+    }
+));

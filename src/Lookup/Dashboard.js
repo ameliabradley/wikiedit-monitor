@@ -1,6 +1,17 @@
-function dashboardView(cxt, callback) {
+function dashboardView(cxt, callback, errorCb) {
   if (Object.keys(cxt.url.query).length < 1) {
-    callback('dashboard.jade', {});
+    var db = cxt.db;
+    db.collection('socketdata_fields')
+      .find()
+      .toArray(function(error, data) {
+        if(error) {
+          errorCb(error);
+          return;
+        }
+        callback('dashboard.jade', {
+            fieldList: data.map((d) => d.field_path)
+        });
+      });
     return true;
   } else {
     return false;
