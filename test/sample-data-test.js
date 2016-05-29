@@ -1,10 +1,10 @@
 var assert = require('assert'),
-    vows = require('vows'),
-    express = require('express'),
-    loader = require('auto-loader'),
-    fs = require('fs'),
-    path = require('path');
-    //MongoClient = require('mongodb').MongoClient;
+  vows = require('vows'),
+  express = require('express'),
+  loader = require('auto-loader'),
+  fs = require('fs'),
+  path = require('path');
+//MongoClient = require('mongodb').MongoClient;
 
 var modules = loader.load(__dirname + '/../src');
 
@@ -38,29 +38,29 @@ var editLog;
 
 vows.describe('socket-data-example').addBatch({
   'When running database init script': {
-    topic: function () {
+    topic: function() {
       var initDb = new modules.EditLog.InitDb(config);
       var self = this;
-      initDb.initialize(function () {
+      initDb.initialize(function() {
         self.callback("succeeded");
-      }, function () {
+      }, function() {
         self.callback("failed");
       });
     },
-    'nothing crazy should happen': function (result, provs, bounds) {
+    'nothing crazy should happen': function(result, provs, bounds) {
       assert.equal(result, "succeeded");
     }
   },
   'When WikiApi queries for some sample data': {
-    topic: function () {
+    topic: function() {
       var self = this;
 
       var app = express.createServer();
       var server = app.listen(3000);
 
-      app.get('/w/api.php', function (req, res) {
+      app.get('/w/api.php', function(req, res) {
         // Source: https://en.wikipedia.org/w/api.php?action=query&prop=revisions&format=json&rvdiffto=prev&revids=708853577|708853655|708970243|708319994|708163001
-        fs.readFile(__dirname + '/data/revdeletes.json', function (err,data) {
+        fs.readFile(__dirname + '/data/revdeletes.json', function(err, data) {
           if (err) {
             res.writeHead(404);
             res.end(JSON.stringify(err));
@@ -78,15 +78,19 @@ vows.describe('socket-data-example').addBatch({
         708970243,
         708319994,
         708163001
-      ], function () {
-        self.callback({ done: true });
+      ], function() {
+        self.callback({
+          done: true
+        });
         server.close();
-      }, function () {
-        self.callback({ done: false });
+      }, function() {
+        self.callback({
+          done: false
+        });
         server.close();
       });
     },
-    'query should parse and return without error': function (err, provs, bounds) {
+    'query should parse and return without error': function(err, provs, bounds) {
       // TODO: Verify that data was parsed *correctly*
       assert.ok(err.done);
     }

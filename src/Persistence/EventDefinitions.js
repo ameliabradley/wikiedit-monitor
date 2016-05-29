@@ -1,3 +1,3 @@
 module.exports = {
-    persist_data: Symbol(),
+  persist_data: Symbol(),
 };

@@ -3,10 +3,10 @@ var revLists = new WeakMap();
 class RevisionList {
   constructor() {
     revLists.set(this, {
-      revisions:[],
-      reservedRevisions:[],
-      dataByRevId:{},
-      releaseCountByRevId:{}
+      revisions: [],
+      reservedRevisions: [],
+      dataByRevId: {},
+      releaseCountByRevId: {}
     });
   }
   get count() {
@@ -40,7 +40,7 @@ class RevisionList {
     return od.reservedRevisions;
   }
   releaseRevisions(revIdList) {
-    for(var revnew of revIdList) {
+    for (var revnew of revIdList) {
       this.releaseRevision(revnew);
     }
   }
@@ -48,10 +48,10 @@ class RevisionList {
     revId = parseInt(revId);
     var od = revLists.get(this);
     var reservedIndex = od.reservedRevisions.indexOf(revId);
-    if(reservedIndex !== -1) {
+    if (reservedIndex !== -1) {
       od.reservedRevisions.splice(reservedIndex, 1);
       od.revisions.push(revId);
-      if(revId in od.releaseCountByRevId) {
+      if (revId in od.releaseCountByRevId) {
         od.releaseCountByRevId[revId]++;
       } else {
         od.releaseCountByRevId[revId] = 1;
@@ -65,12 +65,12 @@ class RevisionList {
     delete od.releaseCountByRevId[revId];
 
     var reservedIndex = od.reservedRevisions.indexOf(revId);
-    if(reservedIndex !== -1) {
+    if (reservedIndex !== -1) {
       od.reservedRevisions.splice(reservedIndex, 1);
     }
 
     var revIndex = od.revisions.indexOf(revId);
-    if(revIndex !== -1) {
+    if (revIndex !== -1) {
       od.revisions.splice(reservedIndex, 1);
     }
   }
