@@ -8,6 +8,7 @@ function getObjectProps(obj, prefix) {
   var keyList = Object.keys(obj).map((s) => prefix + s);
   for(var n of Object.keys(obj)) {
     if(obj[n] && obj[n].toString && obj[n].toString() === '[object Object]') {
+      delete keyList[keyList.indexOf(n)];
       Array.prototype.push.apply(keyList, getObjectProps(obj[n], prefix + n));
     }
   }
