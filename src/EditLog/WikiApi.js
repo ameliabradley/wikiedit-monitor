@@ -52,18 +52,18 @@ class WikiApi {
     options.newRequestAllowed = false;
     var iBeforeQuery = this._getTimestamp();
     var self = this;
-    http.get(httpOpts, function (response) {
+    http.get(httpOpts, function(response) {
       var iAfterQuery = self._getTimestamp();
       var iTotalMs = Math.round((iAfterQuery - iBeforeQuery) / 10) / 100;
       console.log('***** Wikipedia returned in ' + iTotalMs + 's');
 
       var strBody = '';
 
-      response.on('data', function (chunk) {
+      response.on('data', function(chunk) {
         strBody += chunk;
       });
 
-      response.on('end', function () {
+      response.on('end', function() {
         options.newRequestAllowed = true;
 
         try {
@@ -79,7 +79,7 @@ class WikiApi {
         }
       });
 
-      response.on("error", function (err) {
+      response.on("error", function(err) {
         options.newRequestAllowed = true;
         errorCallback('http error', (strBody || ""), strUrl);
       });
