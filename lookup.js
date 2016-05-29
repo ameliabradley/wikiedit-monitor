@@ -58,9 +58,16 @@ function handleRequest(request, res) {
       });
   }
 
-  function renderJsonResponse(jsObj) {
+  function renderJsonResponse(err, jsObj, statusCode) {
     res.setHeader('Content-Type', 'application/json');
-    res.send(JSON.stringify(jsObj));
+    var body = '';
+    if (err) {
+      res.status(statusCode || 500);
+      body = jsObj || { error: ((typeof err.toString === 'function') ? err.toString() : err) };
+    } else {
+      body = jsObj || { success: true };
+    }
+    res.send(body);
   }
 
   var context = {
@@ -69,7 +76,13 @@ function handleRequest(request, res) {
     db: wikiDb
   };
 
-  modules.Lookup.DiffSearch(context, renderSimpleTemplate, error) || modules.Lookup.TitleSearch(context, renderSimpleTemplate, error) || modules.Lookup.ErrorLog(context, renderSimpleTemplate, error) || modules.Lookup.ErrorLog.ajaxCall(context, renderJsonResponse, error) || modules.Lookup.Dashboard(context, renderSimpleTemplate, error) || modules.Lookup.Dashboard.ajaxCall(context, renderJsonResponse, error) || error('Oops, that page does not exist.');
+  modules.Lookup.DiffSearch(context, renderSimpleTemplate, error)
+    || modules.Lookup.TitleSearch(context, renderSimpleTemplate, error) 
+    || modules.Lookup.ErrorLog(context, renderSimpleTemplate, error) 
+    || modules.Lookup.ErrorLog.ajaxCall(context, renderJsonResponse) 
+    || modules.Lookup.Dashboard(context, renderSimpleTemplate, error) 
+    || modules.Lookup.Dashboard.ajaxCall(context, renderJsonResponse) 
+    || error('Oops, that page does not exist.');
 }
 
 //Create a server

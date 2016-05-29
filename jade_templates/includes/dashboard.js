@@ -1,4 +1,5 @@
 function DataPublisher(config, subscribers) {
+    this._urlParser = document.createElement('a');
     this._url = config.url;
     this._timeout = config.timeout;
     this._subscribers = subscribers || [];
@@ -16,15 +17,29 @@ DataPublisher.prototype._notifySubscribers = function(data){
 
 DataPublisher.prototype.startPolling = function(){
     var that = this;
-    d3.json(this._url, function(error, data){
-        if( ! error) {
-            that._notifySubscribers(data);
-        }
+    var endTime = ((new Date()).getTime()/1000).toFixed(0);
+    var startTime = endTime - (60*60); // minus one hour
 
-        setTimeout(function(){
-            that.startPolling();
-        }, that._timeout);
-    });
+    var urlPrefix;
+    if(this._url.indexOf('?') === -1) {
+        urlPrefix = '?'
+    } else {
+        urlPrefix = '&'
+    }
+    d3.json(
+        this._url + urlPrefix
+            + 'time_start=' + startTime
+            + '&time_end=' + endTime,
+        function(error, data){
+            if( ! error) {
+                that._notifySubscribers(data);
+            }
+
+            setTimeout(function(){
+                that.startPolling();
+            }, that._timeout);
+        }
+    );
 };
 
 function ChangesGraph(containerId, fieldTitle, rawFieldName, fieldFunction) {

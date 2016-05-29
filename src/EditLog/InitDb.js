@@ -132,6 +132,15 @@ function InitDb(config) {
     },
 
     function(callback) {
+      var collection = 'socketdata';
+      var index = {
+        'message.timestamp': 1,
+        'message.wiki': 1
+      };
+      createCollectionIndex(collection, index, callback);
+    },
+
+    function(callback) {
       var collection = 'wikiedits';
       var index = {
         'revnew': 1,
