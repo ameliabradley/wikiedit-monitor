@@ -6,6 +6,7 @@
     "async": "^1.5.2",
     "auto-loader": "^0.2.0",
     "bower": "^1.7.7",
+    "bufferutil": "^1.2.1",
     "cheerio": "^0.20.0",
     "dateformat": "^1.0.12",
     "debounce": "^1.0.0",
@@ -16,7 +17,9 @@
     "socket.io": "0.9.x",
     "sprintf": "^0.1.5",
     "sprintf-js": "^1.0.3",
-    "vows": "^0.8.1"
+    "utf-8-validate": "^1.2.1",
+    "vows": "^0.8.1",
+    "ws": "^1.1.0"
   },
   "scripts": {
     "start": "node editlog.js",
