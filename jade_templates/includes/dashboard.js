@@ -210,3 +210,35 @@ ChangesGraph.prototype.updateGraph = function(result){
         }
     }
 ));
+
+(function(){
+    var wsElement = d3.select('#rolling_log');
+    var wsUrl = wsElement.attr('data-ws-url');
+    var wsUiConfig = JSON.parse(wsElement.attr('data-ws-config'));
+    var wsLogArea = wsElement.select('.log_area');
+    var ws = new WebSocket(wsUrl);
+    ws.onopen = function(){
+	ws.send(JSON.stringify({ type: 'config', config: wsUiConfig}));
+    };
+    ws.onmessage = function(evt) {
+        var eventList = JSON.parse(evt.data);
+        if(eventList instanceof Array) {
+            for(var ev of eventList) {
+                switch(ev.eventType) {
+                    case 'wikiedits':
+			wsLogArea.insert('div', ':first-child').text(
+			    ev.eventType + ' - '
+			    + ev.data.edits.length + ' found, '
+			    + Object.keys(ev.data.rejected).map((k) => ev.data.rejected[k].length + ' ' + k).join(', ')
+			);
+			break;
+                        // TODO add other events here
+                }
+		while(wsLogArea.node().children.length > 8) {
+		    wsLogArea.select(':last-child').remove();
+		}
+	    }
+	}
+    };
+    ws.onclose = function() { console.log('websocket closed.'); }
+}());

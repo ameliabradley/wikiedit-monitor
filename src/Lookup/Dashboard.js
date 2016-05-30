@@ -9,6 +9,8 @@ function dashboardView(cxt, callback, errorCb) {
           return;
         }
         callback('dashboard.jade', {
+            wsUrl: cxt.config.wsUrl,
+            wsUiConfig: cxt.config.wsUiConfig,
             fieldList: data.map((d) => d.field_path)
         });
       });
