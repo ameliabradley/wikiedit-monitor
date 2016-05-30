@@ -71,6 +71,7 @@ function handleRequest(request, res) {
   }
 
   var context = {
+    config: config,
     url: urlObject,
     wiki: wiki,
     db: wikiDb

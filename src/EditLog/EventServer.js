@@ -40,12 +40,35 @@ class EventServer {
                 editLogEventFunctions: {},
                 persistenceEventFunctions: {}
             };
+            var eventQueue = [];
 
             function sendEvent(type, data) {
-                ws.send(JSON.stringify({
+                var eventData = {
                     eventType: type,
                     data: data
-                }));
+                };
+                if(typeof subState.timeout === 'undefined') {
+                    ws.send(JSON.stringify([eventData]));
+                } else {
+                    eventQueue.push(eventData);
+                }
+            }
+
+            function flushEventQueue() {
+                if(eventQueue.length > 0) {
+                    var deleteCount = eventQueue.length;
+                    ws.send(JSON.stringify(eventQueue), function(err){
+                        if( ! err) {
+                            eventQueue.splice(0,deleteCount);
+                        }
+
+                        if(err || config.timeout) {
+                            setTimeout(flushEventQueue, config.timeout);
+                        }
+                    });
+                } else if(config.timeout) {
+                    setTimeout(flushEventQueue, config.timeout);
+                }
             }
 
             ws.on('open', function(){
@@ -100,16 +123,32 @@ class EventServer {
 
                         // Validate and set timeout field from client-provided configuration
                         if('timeout' in message.config) {
-                            var newTimeout = parseInt(message.config.timeout);
-                            if(newTimeout > LISTEN_TIME_MAX || newTimeout < LISTEN_TIME_MIN) {
-                                ws.send(JSON.stringify({
-                                    status: 'error',
-                                    description: 'timeout must be less than ' + LISTEN_TIME_MAX
-                                        + ' and greater than ' + LISTEN_TIME_MIN
-                                }));
-                                return;
+                            if(
+                                message.config.timeout === null
+                                || message.config.timeout === false
+                                || typeof message.config.timeout === 'undefined'
+                            ) {
+                                clearTimeout(subState.timeout);
+                                config.timeout = undefined;
+                                subState.timeout = undefined;
+                                flushEventQueue();
                             } else {
-                                config.timeout = newTimeout;
+                                var newTimeout = parseInt(message.config.timeout);
+                                if(newTimeout > LISTEN_TIME_MAX || newTimeout < LISTEN_TIME_MIN) {
+                                    ws.send(JSON.stringify({
+                                        status: 'error',
+                                        description: 'timeout must be less than ' + LISTEN_TIME_MAX
+                                            + ' and greater than ' + LISTEN_TIME_MIN
+                                    }));
+                                    return;
+                                } else {
+                                    if(subState.timeout) {
+                                        clearTimeout(subState.timeout);
+                                    }
+
+                                    config.timeout = newTimeout;
+                                    subState.timeout = setTimeout(flushEventQueue, newTimeout);
+                                }
                             }
                         }
 
@@ -168,7 +207,7 @@ class EventServer {
 
                         // Unbind persistence events that are no longer configured
                         for(var opev of Object.keys(subState.persistenceEventFunctions)) {
-                            if(! (opev in config.editLogEvents)) {
+                            if(! (opev in config.persistenceEvents)) {
                                 var fopev = subState.persistenceEventFunctions[opev];
                                 state.emitter.removeListener(PERSISTENCE_EVENTS[opev], fopev);
                                 delete subState.persistenceEventFunctions[opev];

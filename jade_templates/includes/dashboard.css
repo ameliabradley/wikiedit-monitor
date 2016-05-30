@@ -16,8 +16,10 @@
 }
 
 #add_graph {
+    vertical-align: top;
     margin: 10px;
-    width:400px;
+    width:40%;
+    display:inline-block;
 }
 #add_graph fieldset {
     padding-top:0;
@@ -27,6 +29,14 @@
 }
 #add_graph .form_field label {
     margin-right: 5px;
+}
+#rolling_log {
+    vertical-align: top;
+    display: inline-block;
+    width:50%;
+}
+#rolling_log .log_area {
+    font-size: 12px;
 }
 .chart {
     display: inline-block;
