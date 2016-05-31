@@ -8,6 +8,13 @@
   "cap_total_size": 3000000000,
   "conString": "mongodb://localhost:27017/wikimonitor",
 
+  "//": "WebSocket server configuration, for directly accessing editlog.js events.",
+  "wsConfig": {
+      "port": 8082
+  },
+  "wsUrl": "ws://localhost:8082/",
+  "wsUiConfig": { "timeout": 250, "editLogEvents": {"wikiedits":1} },
+
   "//": "For unit testing (WILL BE DROPPED AND RECREATED)",
   "testConString": "mongodb://localhost:27017/wikimonitor-test",
 
