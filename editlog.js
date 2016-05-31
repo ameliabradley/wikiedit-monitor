@@ -51,10 +51,14 @@ var connector = new modules.Persistence.MongoConnector(config.conString)
 persister = new modules.Persistence.PeriodicPersister(emitter, connector),
   editDataTracker = new modules.EditLog.EditDataTracker(emitter),
   associationTracker = new modules.Analytics.AssociationTracker(emitter, connector),
+  fieldTracker = new modules.Analytics.SocketFieldTracker(emitter, connector),
+  eventServer = new modules.EditLog.EventServer(config.wsConfig, emitter),
   editLog = new modules.EditLog.EditLog(config, emitter);
 
 persister.startMonitoring();
 editDataTracker.startMonitoring();
 associationTracker.startMonitoring();
+fieldTracker.startMonitoring();
+eventServer.startServer();
 
 editLog.start();

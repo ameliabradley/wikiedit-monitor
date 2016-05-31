@@ -16,7 +16,7 @@ function errorView(cxt, callback) {
   }
 }
 
-errorView.ajaxCall = function(cxt, callback, errorCallback) {
+errorView.ajaxCall = function(cxt, callback) {
   // TODO: Use aggregate function
   /*
   db.getCollection('errorlog').aggregate([
@@ -120,7 +120,8 @@ errorView.ajaxCall = function(cxt, callback, errorCallback) {
     }
   }]).toArray(function(err, errorRows) {
     if (err) {
-      return errorCallback("db error: " + err);
+      callback(err, undefined, 500);
+      return;
     }
 
     var revTitleList = [];
@@ -149,7 +150,8 @@ errorView.ajaxCall = function(cxt, callback, errorCallback) {
       }]
     ).toArray(function(err, countRows) {
       if (err) {
-        return errorCallback("db error: " + err);
+        callback(err, undefined, 500);
+        return;
       }
 
       var oCountsByTitle = {};
@@ -214,7 +216,7 @@ errorView.ajaxCall = function(cxt, callback, errorCallback) {
             return;
           }
 
-          callback({
+          callback(null, {
             wiki: wiki,
             start: start,
             length: length,

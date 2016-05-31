@@ -4,14 +4,30 @@ style
 h1 Wikiedit Monitor Dashboard
 nav#top_nav
   a(href="/?errorlog=1") Error Log
+form#add_graph
+    fieldset
+        h3 Graph Builder
+        div.form_field
+            label(for="GraphType") Graph Type
+            select(id="GraphType",name="GraphType")
+                option(value="ChangesGraph") ChangesGraph
+        div.form_field
+            label(for="XTitle") X-Axis Title
+            input(id="XTitle",name="XTitle",value="Logged in Last 24 Hours")
+        div.form_field
+            label(for="YTitle") Y-Axis Title
+            input(id="YTitle",name="YTitle")
+        div.form_field
+            label(for="fieldPath") Field Path
+            select(id="fieldPath",name="fieldPath")
+                each val, index in fieldList || []
+                    option(value=val)=val
+        input(id="create_graph_button",type="button",value="Create Graph")
+
+div#rolling_log(data-ws-url=wsUrl,data-ws-config=wsUiConfig)
+    h3 Live Log Events
+    div.log_area
 div#main_graph_area
-  div#active_articles.chart
-  div#active_users.chart
-  div#active_action_types.chart
-  div#active_comments.chart
-  div#socket_graph
-  div#edit_graph
-  div#error_graph
 
 script
    include dashboard.js
