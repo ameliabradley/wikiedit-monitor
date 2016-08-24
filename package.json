@@ -14,7 +14,7 @@
     "jade": "^1.11.0",
     "log": "1.2.x",
     "mongodb": "^2.1.7",
-    "socket.io": "0.9.x",
+    "primus-socket.io-client": "2.0.x",
     "sprintf": "^0.1.5",
     "sprintf-js": "^1.0.3",
     "utf-8-validate": "^1.2.1",
@@ -22,7 +22,11 @@
     "ws": "^1.1.0"
   },
   "scripts": {
-    "start": "node editlog.js",
+    "mongo-docker": "docker run --name wikiedit-monitor-mongo -d mongo",
+    "node-docker-win": "docker run -d -w /app -p 127.0.0.1:8081:8081 -p 127.0.0.1:8082:8082 -v %cd%:/app --link wikiedit-monitor-mongo:mongo --name wikiedit-monitor node npm start",
+    "node-docker-nix": "docker run -d -w /app -p 127.0.0.1:8081:8081 -p 127.0.0.1:8082:8082 -v $PWD:/app --link wikiedit-monitor-mongo:mongo --name wikiedit-monitor node npm start",
+    "start": "npm install --no-bin-links && npm run-script init-mongo && ( node editlog.js & node lookup.js )",
+    "init-mongo": "node init_mongodb.js",
     "test": "node test/sample-data-test.js",
     "postinstall": "./node_modules/bower/bin/bower install"
   }

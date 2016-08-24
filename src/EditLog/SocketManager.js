@@ -1,4 +1,4 @@
-var io = require('socket.io-client'),
+var io = require('primus-socket.io-client'),
   debounce = require('debounce');
 
 function SocketManager() {
