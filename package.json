@@ -22,9 +22,6 @@
     "ws": "^1.1.0"
   },
   "scripts": {
-    "mongo-docker": "docker run --name wikiedit-monitor-mongo -d mongo",
-    "node-docker-win": "docker run -d -w /app -p 127.0.0.1:8081:8081 -p 127.0.0.1:8082:8082 -v %cd%:/app --link wikiedit-monitor-mongo:mongo --name wikiedit-monitor node npm start",
-    "node-docker-nix": "docker run -d -w /app -p 127.0.0.1:8081:8081 -p 127.0.0.1:8082:8082 -v $PWD:/app --link wikiedit-monitor-mongo:mongo --name wikiedit-monitor node npm start",
     "start": "npm install --no-bin-links && npm run-script init-mongo && ( node editlog.js & node lookup.js )",
     "init-mongo": "node init_mongodb.js",
     "test": "node test/sample-data-test.js",
