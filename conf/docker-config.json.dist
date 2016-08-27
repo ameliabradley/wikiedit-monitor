@@ -1,0 +1,22 @@
+{
+  "//": "Limit data size w/ collections that rotate out old data",
+  "//": "See: https://docs.mongodb.org/manual/core/capped-collections/",
+  "cap_collections": false,
+
+  "//": "Max summed size of all capped collections in bytes - Default: 3GB",
+  "//": "Minimum allowed size: 4096 bytes per collection",
+  "cap_total_size": 3000000000,
+  "conString": "mongodb://mongo:27017/wikimonitor",
+
+  "//": "WebSocket server configuration, for directly accessing editlog.js events.",
+  "wsConfig": {
+      "port": 8082
+  },
+  "wsUrl": "ws://localhost:8082/",
+  "wsUiConfig": { "timeout": 250, "editLogEvents": {"wikiedits":1} },
+
+  "//": "For unit testing (WILL BE DROPPED AND RECREATED)",
+  "testConString": "mongodb://localhost:27017/wikimonitor-test",
+
+  "max_reconnection_attempts": 13
+}

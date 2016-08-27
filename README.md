@@ -12,25 +12,30 @@ Project goals:
 This software should be able to run for weeks on end without problems.
 
 ## Setup
-wikiedit-monitor requires MongoDB, and over time, a substantial amount of hard drive space.
+Prerequisites:
+* [Docker Compose](https://docs.docker.com/compose/install/)
 
-Steps:
-* Set up MongoDB
-* Clone the repository
-* Copy `conf/config.json.example` to the base project directory and rename it to `config.json`
-* Modify `config.json` to point to your MongoDB instance
-* Install the required npm packages with `npm install`
-* Run the initialization script with `nodejs init_mongodb.js`
-* Start the logging utility with `nodejs editlog.js`
+1. Copy `(project-root)/conf/docker-config.json.dist` to `(project-root)/config.json`.
+2. Start the application by running `docker-compose up` in the project root.
+3. Access the web interface at `http://localhost:8081`.
 
-After you have some data, you should be able to analyize errors:
-* Run `nodejs lookup.js`
-* Point a browser at the given URL, adding a query parameter for desired function
-  * diff
-  * title
-  * errorlog (ex: http://localhost:8081/?errorlog)
+Any files you change in the project will sync to the Node Docker instance under `/app`.
 
-**wikiedit-monitor** is very much a work in progress. It currently does very little other than logging data and detecting administrative revision deletes.
+Show output from the server processes:
+```
+docker-compose logs -f
+```
+
+Stop, start, or restart the server:
+```
+docker-compose stop
+docker-compose start
+docker-compose restart
+```
+
+Remove the docker container: `docker-compose down`
 
 ## Contributing
+This project is primarily developed with [Node.js](https://nodejs.org/en/).
+
 Make sure your changes succeed the unit tests by running `npm test` from the base directory.
