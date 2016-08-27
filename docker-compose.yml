@@ -1,0 +1,17 @@
+version: '2'
+services:
+  wikiedit-monitor:
+    image: node
+    ports:
+     - "8081:8081"
+     - "8082:8082"
+    volumes:
+     - .:/app
+    depends_on:
+     - wikiedit-monitor-mongo
+    links:
+     - wikiedit-monitor-mongo:mongo
+    working_dir: /app
+    command: npm start
+  wikiedit-monitor-mongo:
+    image: mongo
