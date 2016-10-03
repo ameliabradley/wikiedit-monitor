@@ -6,7 +6,8 @@ class RevisionList {
       revisions: [],
       reservedRevisions: [],
       dataByRevId: {},
-      releaseCountByRevId: {}
+      releaseCountByRevId: {},
+      purgeOnRelease: []
     });
   }
   get count() {
@@ -23,6 +24,10 @@ class RevisionList {
     var od = revLists.get(this);
     od.revisions.push(revId);
     od.dataByRevId[revId] = data;
+  }
+  hasRevision(revId) {
+    revId = parseInt(revId);
+    return this.revisions.indexOf(revId) !== -1;
   }
   getRevisionData(revId) {
     revId = parseInt(revId);
@@ -57,12 +62,25 @@ class RevisionList {
         od.releaseCountByRevId[revId] = 1;
       }
     }
+    if(od.purgeOnRelease[revId]) {
+       this.purgeRevision(revId);
+    }
+  }
+  purgeOnRelease(revId) {
+    revId = parseInt(revId);
+    var od = revLists.get(this);
+    if(od.revisions.indexOf(revId) === -1){
+       od.purgeOnRelease[revId] = true;
+    } else {
+       this.purgeRevision(revId);
+    }
   }
   purgeRevision(revId) {
     revId = parseInt(revId);
     var od = revLists.get(this);
     delete od.dataByRevId[revId];
     delete od.releaseCountByRevId[revId];
+    delete od.purgeOnRelease[revId];
 
     var reservedIndex = od.reservedRevisions.indexOf(revId);
     if (reservedIndex !== -1) {
