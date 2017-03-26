@@ -24,7 +24,7 @@ form#add_graph
                     option(value=val)=val
         input(id="create_graph_button",type="button",value="Create Graph")
 
-div#rolling_log(data-ws-url=wsUrl,data-ws-config=wsUiConfig)
+div#rolling_log(data-ws-port=wsPort,data-ws-config=wsUiConfig)
     h3 Live Log Events
     div.log_area
 div#main_graph_area
