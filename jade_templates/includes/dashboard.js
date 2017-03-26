@@ -213,10 +213,10 @@ ChangesGraph.prototype.updateGraph = function(result){
 
 (function(){
     var wsElement = d3.select('#rolling_log');
-    var wsUrl = wsElement.attr('data-ws-url');
+    var wsPort = wsElement.attr('data-ws-port');
     var wsUiConfig = JSON.parse(wsElement.attr('data-ws-config'));
     var wsLogArea = wsElement.select('.log_area');
-    var ws = new WebSocket(wsUrl);
+    var ws = new WebSocket('ws://' + window.location.hostname + ':' + wsPort);
     ws.onopen = function(){
 	ws.send(JSON.stringify({ type: 'config', config: wsUiConfig}));
     };

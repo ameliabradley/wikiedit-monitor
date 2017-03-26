@@ -12,7 +12,7 @@
   "wsConfig": {
       "port": 8082
   },
-  "wsUrl": "ws://localhost:8082/",
+  "wsPort": "8082",
   "wsUiConfig": { "timeout": 250, "editLogEvents": {"wikiedits":1} },
 
   "//": "For unit testing (WILL BE DROPPED AND RECREATED)",
