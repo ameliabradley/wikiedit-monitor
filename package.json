@@ -8,6 +8,7 @@
     "bower": "^1.7.7",
     "bufferutil": "^1.2.1",
     "cheerio": "^0.20.0",
+    "console-stamp": "^0.2.4",
     "dateformat": "^1.0.12",
     "debounce": "^1.0.0",
     "express": "2.5.x",

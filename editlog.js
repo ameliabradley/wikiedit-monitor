@@ -4,6 +4,8 @@ var loader = require('auto-loader'),
   path = require('path'),
   EventEmitter = require('events');
 
+require('console-stamp')(console, 'isoUtcDateTime');
+
 var modules = loader.load(__dirname + '/src');
 
 // Get the configuration

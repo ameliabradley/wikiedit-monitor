@@ -49,7 +49,9 @@ function EditLog(config, m_eventEmitter) {
     m_revisionList.releaseRevision(revid);
 
     // Strikes until I'm not querying for this revision's diff anymore
-    if (m_revisionList.getReleaseCount(revid) > MAX_NOTCACHED_RETRIES) {
+    if ( ! m_revisionList.hasRevision(revid)) {
+      logError(revid, "Article deleted, and last revision query attempt failed: " + strError, page, strUrl, false);
+    } else if (m_revisionList.getReleaseCount(revid) > MAX_NOTCACHED_RETRIES) {
       // Something's wrong with this revision! :(
       // NOTE: Usually happens with an admin's revdelete revision
       // EX: https://en.wikipedia.org/w/api.php?action=query&prop=revisions&format=json&rvdiffto=prev&revids=696894315
@@ -193,8 +195,8 @@ function EditLog(config, m_eventEmitter) {
 
       if (oRev && oRev.title === strTitle) {
         deletedRevisions.push(oRev);
-        logError(revid, "Revision could not be queried because article was deleted", oRev, "", false);
-        m_revisionList.purgeRevision(revid);
+        logError(revid, "Revision query may fail because article was deleted", oRev, "", false);
+        m_revisionList.purgeOnRelease(revid);
         iRevsDeleted++;
       }
     }
